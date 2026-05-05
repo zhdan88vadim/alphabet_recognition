@@ -1,0 +1,8 @@
+dataset/
+__pycache__
+debug/
+*.pth
+private_local/
+recognition_result.png
+models/model.py
+training_history.json
