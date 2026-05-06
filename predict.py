@@ -87,7 +87,7 @@ class MultiLetterRecognizerDebug:
         
         return gray, binary
     
-    def segment_letters(self, image, min_area=300, sort_left_to_right=True, aspect_ratio_range=(0.5, 2.0)):
+    def segment_letters(self, image, min_area=300, sort_left_to_right=True, aspect_ratio_range=(0.7, 1.3)):
         gray, binary = self.preprocess_image(image)
         
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -102,9 +102,9 @@ class MultiLetterRecognizerDebug:
 
             x, y, w, h = cv2.boundingRect(cnt)
 
-            # aspect_ratio = w / h if h > 0 else 0
-            # if aspect_ratio < aspect_ratio_range[0] or aspect_ratio > aspect_ratio_range[1]:
-            #     continue
+            aspect_ratio = w / h if h > 0 else 0
+            if aspect_ratio < aspect_ratio_range[0] or aspect_ratio > aspect_ratio_range[1]:
+                continue
             
             padding = 4
             x = max(0, x - padding)
