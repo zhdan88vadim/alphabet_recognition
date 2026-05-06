@@ -1,16 +1,13 @@
 from models.model import AlphabetRecognizer
 import torch
 from torch.utils.data import DataLoader, random_split
-from torchvision import datasets, transforms
-import json
+from torchvision import datasets
 import yaml
 
 
 from training.callbacks import EarlyStopping
 from training.trainer import ModelTrainer
-from data.augmentation import ExtractLetterWithMargin, SimpleThinOrThicken, Invert, RandomMissingPart, RandomBleed, AddRandomBlobs, RandomStrokeWidth, AddRandomBlackSpots
-
-DATA_ROOT = "./dataset/test (копия)/"
+from data.augmentation import AdaptiveAugmentationBuilder
 
 def load_config(config_path='config/config.yaml'):
     """Загружает конфигурацию"""
@@ -24,69 +21,25 @@ def main():
     print(f"🔧 Используем устройство: {device}")
     print(f"{'='*60}")
 
-    train_transform = transforms.Compose([
-        ExtractLetterWithMargin(margin=2, fill_white=True),
-        transforms.Resize((64, 64)),
-        # transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
-        Invert(),
-            
-        AddRandomBlobs(p=0.5, num_blobs=(3, 5), blob_size=(2, 4), intensity=(250, 255)),
-        AddRandomBlobs(p=0.5, num_blobs=(3, 5), blob_size=(2, 4), intensity=(0, 5)),
-        AddRandomBlackSpots(p=0.5, num_spots=(2, 5), spot_size=(2, 4)),
-        
-        RandomStrokeWidth(p=0.5, thickness_range=(-1, 2)),  # изменение толщины
-        RandomBleed(p=0.5, blur_radius=(0.5, 1.2)),  # растекание
-        RandomMissingPart(p=0.5, cut_size=(2, 4)),  # отсутствующая часть
-
-        # transforms.RandomRotation(degrees=15), 
-        transforms.RandomAffine(
-            degrees=10, 
-            translate=(0.1, 0.2), 
-            shear=15
-        ),
-        # ElasticTransform(alpha=8, sigma=2, p=1),
-        
-        # # Добавляем больше аугментаций
-        # transforms.RandomPerspective(distortion_scale=0.4, p=0.5),     
-        # transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.1),
-        SimpleThinOrThicken(p=1, strength='medium', min_thickness=1),
-        
-        Invert(),   
-        # transforms.GaussianBlur(kernel_size=3, sigma=(0.4, 0.9)),
-        
-        # Конвертируем в 3 канала перед ToTensor
-        transforms.Lambda(lambda x: x.convert('RGB') if x.mode != 'RGB' else x),
-        transforms.Grayscale(num_output_channels=1),
-        transforms.ToTensor(),
-        # AddGaussianNoise(), 
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
-
-    val_transform = transforms.Compose([
-        ExtractLetterWithMargin(margin=2, fill_white=True),
-        transforms.Resize((64, 64)),
-        Invert(),
-        SimpleThinOrThicken(p=1, strength='medium', min_thickness=1),
-        Invert(),
-        # transforms.Lambda(lambda x: 255 - np.array(x) if isinstance(x, Image.Image) else 255 - x),
-        # transforms.ToPILImage(),  # обратно в PIL        
-        transforms.Grayscale(num_output_channels=1),
-        transforms.ToTensor(),
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
+    aug_builder = AdaptiveAugmentationBuilder(base_size=config['data']['image_size'])
+    
+    train_transform = aug_builder.build_train_transform(
+        (config['data']['image_size'], config['data']['image_size'])
+    )
+    val_transform = aug_builder.build_val_transform(
+        (config['data']['image_size'], config['data']['image_size'])
+    )
 
     print("📂 Загрузка датасета...")
-    full_dataset = datasets.ImageFolder(root=DATA_ROOT, transform=train_transform)
+    full_dataset = datasets.ImageFolder(
+        root=config['data']['train_root'], 
+        transform=train_transform
+    )
     
     class_names = full_dataset.classes
     num_classes = len(class_names)
     print(f"📚 Найдено классов: {num_classes}")
     print(f"   {class_names}")
-
-    with open("class_mapping.json", "w", encoding="utf-8") as f:
-        json.dump(class_names, f, ensure_ascii=False)
     
     # Подсчет количества изображений на класс
     class_counts = {}

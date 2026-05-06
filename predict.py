@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 image_path = "hor_text.png"
 # image_path = "private_local/test_letters_my0.png"
-image_path = "private_local/test_my.png"
+# image_path = "private_local/test_my.png"
 
 
 class MultiLetterRecognizerDebug:
@@ -412,15 +412,6 @@ def main():
         model_path='best_alphabet_model.pth',
         mapping_path='class_mapping.json'
     )
-    
-    if not os.path.exists(image_path):
-        print(f"❌ Файл {image_path} не найден!")
-        print(f"📁 Текущая папка: {os.getcwd()}")
-        print("Доступные файлы:")
-        for f in os.listdir('.'):
-            if f.lower().endswith(('.png', '.jpg', '.jpeg')):
-                print(f"   - {f}")
-        return
     
     results = recognizer.recognize_image(
         image_path,

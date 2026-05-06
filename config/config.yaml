@@ -1,5 +1,5 @@
 data:
-  train_root: "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test (копия)/"
+  train_root: "./dataset/test (копия)/"
   val_root: "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/validation"
   image_size: 64
   train_split: 0.8
@@ -11,7 +11,7 @@ model:
   dropout_rate: 0.5
   
 training:
-  batch_size: 32
+  batch_size: 128
   epochs: 20
   learning_rate: 0.0005
   weight_decay: 0.02

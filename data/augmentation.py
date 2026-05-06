@@ -8,6 +8,81 @@ from PIL import Image, ImageDraw, ImageFilter
 import random
 
 
+class AdaptiveAugmentationBuilder:
+    """Адаптивные аугментации с кэшированием параметров"""
+    
+    def __init__(self, base_size=64):
+        self.base_size = base_size
+        self.size_cache = {}
+    
+    def get_adaptive_params(self, current_size):
+        """Вычисляет параметры аугментаций на основе размера"""
+        if current_size in self.size_cache:
+            return self.size_cache[current_size]
+        
+        scale = current_size[0] / self.base_size
+        
+        params = {
+            'blob_size': (max(1, int(2 * scale)), max(1, int(4 * scale))),
+            'spot_size': (max(1, int(2 * scale)), max(1, int(4 * scale))),
+            'cut_size': (max(1, int(2 * scale)), max(1, int(4 * scale))),
+            'blur_radius': (0.5 * scale, 1.2 * scale),
+            'stroke_width': (-max(1, int(1 * scale)), max(1, int(2 * scale))),
+            'translate': (0.1 * (scale**0.5), 0.2 * (scale**0.5)),
+            'shear': 15 * scale,
+            'degrees': 10 * min(1.0, scale)
+        }
+        
+        self.size_cache[current_size] = params
+        return params
+    
+    def build_train_transform(self, image_size):
+        params = self.get_adaptive_params(image_size)
+
+        return transforms.Compose([
+            ExtractLetterWithMargin(margin=2, fill_white=True),
+            transforms.Resize(image_size),
+            # transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+            Invert(),
+            AddRandomBlobs(p=0.5, num_blobs=(3, 5), 
+                          blob_size=params['blob_size'], intensity=(250, 255)),
+            AddRandomBlobs(p=0.5, num_blobs=(3, 5),
+                          blob_size=params['blob_size'], intensity=(0, 5)),
+            AddRandomBlackSpots(p=0.5, num_spots=(2, 5),
+                               spot_size=params['spot_size']),
+            RandomStrokeWidth(p=0.5, thickness_range=params['stroke_width']),
+            RandomBleed(p=0.5, blur_radius=params['blur_radius']),
+            RandomMissingPart(p=0.5, cut_size=params['cut_size']),
+            transforms.RandomAffine(
+                degrees=params['degrees'],
+                translate=params['translate'],
+                shear=params['shear']
+            ),
+            SimpleThinOrThicken(p=1, strength='light', min_thickness=1),
+            Invert(),
+            transforms.Lambda(lambda x: x.convert('RGB') if x.mode != 'RGB' else x),
+            transforms.Grayscale(num_output_channels=1),
+            transforms.ToTensor(),
+            # AddGaussianNoise(), 
+            # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])            
+            transforms.Normalize(mean=[0.5], std=[0.5])
+        ])
+    
+    def build_val_transform(self, image_size):
+        
+        return transforms.Compose([
+            ExtractLetterWithMargin(margin=2, fill_white=True),
+            transforms.Resize(image_size),
+            Invert(),
+            SimpleThinOrThicken(p=1, strength='medium', min_thickness=1),
+            Invert(),
+            # transforms.Lambda(lambda x: 255 - np.array(x) if isinstance(x, Image.Image) else 255 - x),
+            # transforms.ToPILImage(),  # обратно в PIL        
+            transforms.Grayscale(num_output_channels=1),
+            transforms.ToTensor(),
+            # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.5], std=[0.5])
+        ])
 
 class ExtractLetterWithMargin:
     """Вырезает букву по контуру с добавлением отступа"""
