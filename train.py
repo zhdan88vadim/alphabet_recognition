@@ -1,21 +1,24 @@
 from models.model import AlphabetRecognizer
 import torch
-import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
-from tqdm import tqdm
 import json
-import copy
+import yaml
 
 
 from training.callbacks import EarlyStopping
-from transforms_helper import ExtractLetterWithMargin, SimpleThinOrThicken, Invert, RandomMissingPart, RandomBleed, AddRandomBlobs, RandomStrokeWidth, AddRandomBlackSpots
+from training.trainer import ModelTrainer
+from data.augmentation import ExtractLetterWithMargin, SimpleThinOrThicken, Invert, RandomMissingPart, RandomBleed, AddRandomBlobs, RandomStrokeWidth, AddRandomBlackSpots
 
 DATA_ROOT = "./dataset/test (копия)/"
 
+def load_config(config_path='config/config.yaml'):
+    """Загружает конфигурацию"""
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
 def main():
-    global val_loader
+    config = load_config()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"🔧 Используем устройство: {device}")
@@ -106,11 +109,11 @@ def main():
     # Меняем трансформацию для валидации
     val_dataset.dataset.transform = val_transform
     
-    print(f"\n📦 Train samples: {len(train_dataset)}")
-    print(f"📦 Val samples: {len(val_dataset)}")
+    print(f"\n Train samples: {len(train_dataset)}")
+    print(f"Val samples: {len(val_dataset)}")
     
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True, num_workers=config['data']['num_workers'], pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'], shuffle=False, num_workers=config['data']['num_workers'], pin_memory=True)
 
     model = AlphabetRecognizer()
     model.to(device)
@@ -122,153 +125,10 @@ def main():
     print(f"   Всего параметров: {total_params:,}")
     print(f"   Обучаемых: {trainable_params:,}")
 
-    # # Создаем веса для классов
-    # class_weights = torch.ones(num_classes)
-    # # Увеличиваем вес для В и Р
-    # class_weights[class_names.index('В')] = 1.5
-    # class_weights[class_names.index('Р')] = 1.5
-
-    # --- Оптимизатор с weight decay ---
-    # criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
-    criterion = nn.CrossEntropyLoss()
+    trainer = ModelTrainer(model, device, config)
+    early_stopping = EarlyStopping(patience=config['training']['early_stopping_patience'])
     
-    # criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
-    
-    optimizer = optim.AdamW(
-        model.parameters(),
-        lr=0.0005, # 0.0001
-        weight_decay=0.02  # L2 регуляризация
-    )
-    
-    # Scheduler: уменьшаем lr при затухании валидации
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 
-        mode='max', 
-        factor=0.5, 
-        patience=2, 
-    )
-    
-    early_stopping = EarlyStopping(patience=3, min_delta=0.001)
-    
-
-    epochs = 20
-    best_acc = 0.0
-    best_model_wts = copy.deepcopy(model.state_dict())
-    train_losses = []
-    val_accs = []
-    
-    print(f"\nНачинаем обучение на {epochs} эпохах...")
-    print(f"{'='*60}")
-    
-    for epoch in range(epochs):
-        # ---------- Training ----------
-        model.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        
-        loop = tqdm(train_loader, desc=f"Train Epoch {epoch+1}")
-        for inputs, labels in loop:
-            inputs, labels = inputs.to(device), labels.to(device)
-            
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            
-            # Gradient clipping для стабильности
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
-            optimizer.step()
-            
-            running_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-            
-            train_acc = 100 * correct / total
-            loop.set_postfix(loss=loss.item(), acc=f"{train_acc:.1f}%")
-        
-        train_loss = running_loss / len(train_loader)
-        train_acc = 100 * correct / total
-        train_losses.append(train_loss)
-        
-        # ---------- Validation ----------
-        model.eval()
-        val_correct = 0
-        val_total = 0
-        val_loss = 0.0
-        
-        with torch.no_grad():
-            for inputs, labels in val_loader:
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                val_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-        
-        val_acc = 100 * val_correct / val_total
-        val_loss = val_loss / len(val_loader)
-        val_accs.append(val_acc)
-        
-        # ---------- Отчет ----------
-        print(f"\nEpoch {epoch+1}/{epochs}")
-        print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
-        print(f"  Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%")
-        
-        # Разрыв между train и val (индикатор переобучения)
-        gap = train_acc - val_acc
-        if gap > 5:
-            print(f"  ⚠️ Разрыв Train-Val: {gap:.2f}% (возможно переобучение)")
-        
-        # ---------- Scheduler ----------
-        scheduler.step(val_acc)
-        current_lr = optimizer.param_groups[0]['lr']
-        print(f"  Learning Rate: {current_lr:.6f}")
-        
-        # ---------- Сохранение лучшей модели ----------
-        if val_acc > best_acc:
-            best_acc = val_acc
-            best_model_wts = copy.deepcopy(model.state_dict())
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_acc': val_acc,
-                'class_names': class_names,
-            }, 'best_alphabet_model.pth')
-            print(f"  Сохранена лучшая модель (Acc: {val_acc:.2f}%)")
-        
-        # ---------- Early Stopping ----------
-        if early_stopping(val_acc):
-            print(f"\n🛑 Early stopping triggered на эпохе {epoch+1}")
-            break
-        
-        # Дополнительная проверка: если точность валидации падает 3 эпохи подряд
-        if len(val_accs) > 3:
-            if val_accs[-1] < val_accs[-2] < val_accs[-3]:
-                print(f"  ⚠️ Val accuracy падает 3 эпохи подряд!")
-    
-    # Load better model
-    model.load_state_dict(best_model_wts)
- 
-    print(f"\n{'='*60}")
-    print(f"Обучение завершено!")
-    print(f"Лучшая точность на валидации: {best_acc:.2f}%")
-    print(f"Модель сохранена в 'best_alphabet_model.pth'")
-    print(f"Маппинг классов в 'class_mapping.json'")
-    print(f"{'='*60}")
-    
-    with open("training_history.json", "w", encoding="utf-8") as f:
-        json.dump({
-            'train_losses': train_losses,
-            'val_accs': val_accs,
-            'best_acc': best_acc,
-            'num_classes': num_classes,
-            'class_names': class_names
-        }, f)
+    trainer.train(train_loader, val_loader, class_names, early_stopping)
 
 if __name__ == "__main__":
     main()

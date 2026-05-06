@@ -6,3 +6,4 @@ private_local/
 recognition_result.png
 models/model.py
 training_history.json
+runs/

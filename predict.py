@@ -12,6 +12,11 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 
 
+image_path = "hor_text.png"
+# image_path = "private_local/test_letters_my0.png"
+image_path = "private_local/test_my.png"
+
+
 class MultiLetterRecognizerDebug:
     def __init__(self, model_path='best_alphabet_model.pth', mapping_path='class_mapping.json'):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -407,10 +412,6 @@ def main():
         model_path='best_alphabet_model.pth',
         mapping_path='class_mapping.json'
     )
-    
-    image_path = "hor_text.png"
-    # image_path = "test_letters_my0.png"
-    # image_path = "test_my.png"
     
     if not os.path.exists(image_path):
         print(f"❌ Файл {image_path} не найден!")
