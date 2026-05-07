@@ -8,3 +8,4 @@ models/model.py
 training_history.json
 runs/
 TODO.md
+doc/

@@ -44,6 +44,7 @@ class AdaptiveAugmentationBuilder:
             transforms.Resize(image_size),
             # transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
             Invert(),
+            transforms.RandomRotation(20),
             AddRandomBlobs(p=0.5, num_blobs=(3, 5), 
                           blob_size=params['blob_size'], intensity=(250, 255)),
             AddRandomBlobs(p=0.5, num_blobs=(3, 5),
@@ -60,7 +61,10 @@ class AdaptiveAugmentationBuilder:
             ),
             SimpleThinOrThicken(p=1, strength='light', min_thickness=1),
             Invert(),
+            
+            # TODO: Is it needed?
             transforms.Lambda(lambda x: x.convert('RGB') if x.mode != 'RGB' else x),
+
             transforms.Grayscale(num_output_channels=1),
             transforms.ToTensor(),
             # AddGaussianNoise(), 
