@@ -6,11 +6,10 @@ from torchvision import transforms
 from PIL import Image
 import json
 import cv2
-import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 import os
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 from models.model import AlphabetRecognizer
 
 class AlphabetPredictor:   

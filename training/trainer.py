@@ -4,16 +4,16 @@ import torch.optim as optim
 from tqdm import tqdm
 import copy
 import json
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
 class ModelTrainer:
     """Класс для обучения моделей"""
     
-    def __init__(self, model, device, config):
+    def __init__(self, model, device, config, writer):
         self.model = model
         self.device = device
         self.config = config
+        self.writer = writer
         
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(
@@ -31,10 +31,7 @@ class ModelTrainer:
         self.train_losses = []
         self.val_accs = []
         self.best_acc = 0.0
-        self.best_model_wts = copy.deepcopy(model.state_dict())
-        
-        # TensorBoard
-        self.writer = SummaryWriter('runs/alphabet_experiment')
+        self.best_model_wts = copy.deepcopy(model.state_dict())        
     
     def train_epoch(self, train_loader):
         """Обучает одну эпоху"""
