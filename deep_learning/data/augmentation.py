@@ -4,8 +4,112 @@ import torch
 from torchvision import transforms
 import numpy as np
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 import random
+
+class SquarePad:
+    """
+    Добавляет паддинги к изображению, чтобы сделать его квадратным.
+    Размер берется по большей стороне.
+    """
+    def __init__(self, fill_white=False):
+        """
+        Args:
+            fill_value: значение для заполнения (0-255) если fill_white=False
+            fill_white: если True - белый паддинг (255), если False - черный (fill_value)
+        """        
+        self.fill_white = fill_white
+    
+    def __call__(self, img):
+        # Получаем размеры изображения
+        width, height = img.size
+        
+        # Определяем размер квадрата (большая сторона)
+        max_side = max(width, height)
+        
+        # Вычисляем необходимые отступы
+        pad_left = (max_side - width) // 2
+        pad_top = (max_side - height) // 2
+        pad_right = max_side - width - pad_left
+        pad_bottom = max_side - height - pad_top
+        
+        # Определяем цвет паддинга
+        if self.fill_white:
+            fill_color = 255
+        else:
+            fill_color = 0
+        
+        # Добавляем паддинги
+        padding = (pad_left, pad_top, pad_right, pad_bottom)
+        img_padded = ImageOps.expand(img, padding, fill=fill_color)
+        
+        return img_padded
+
+class CenterDigitsTransform:
+    """Трансформация для использования в torchvision.transforms.Compose"""
+    
+    def __init__(self, padding=10, fill_value=255):
+        self.padding = padding
+        self.fill_value = fill_value
+    
+    def __call__(self, img):
+        # img - PIL Image
+        img_np = np.array(img)
+        
+        # Конвертируем в灰度 если RGB
+        if len(img_np.shape) == 3:
+            gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_np.copy()
+        
+        # Бинаризация
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Находим контуры
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            # ✅ ВОЗВРАЩАЕМ ПУСТОЕ ИЗОБРАЖЕНИЕ ТАКОГО ЖЕ ФОРМАТА!
+            if len(img_np.shape) == 2:
+                result = np.ones_like(img_np) * self.fill_value
+            else:
+                result = np.ones_like(img_np) * self.fill_value
+            return Image.fromarray(result.astype(np.uint8))
+        
+        # Bounding box
+        x_min, y_min = float('inf'), float('inf')
+        x_max, y_max = 0, 0
+        
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            x_min = min(x_min, x)
+            y_min = min(y_min, y)
+            x_max = max(x_max, x + w)
+            y_max = max(y_max, y + h)
+        
+        # Добавляем отступ
+        x_min = max(0, x_min - self.padding)
+        y_min = max(0, y_min - self.padding)
+        x_max = min(img_np.shape[1], x_max + self.padding)
+        y_max = min(img_np.shape[0], y_max + self.padding)
+        
+        # Вырезаем и центрируем
+        digits_area = img_np[y_min:y_max, x_min:x_max]
+        
+        # Создаем белое полотно (для черных цифр на белом фоне)
+        if len(img_np.shape) == 2:
+            centered = np.ones_like(img_np) * self.fill_value
+        else:
+            centered = np.ones_like(img_np) * self.fill_value
+        
+        h, w = digits_area.shape[:2]
+        start_y = (img_np.shape[0] - h) // 2
+        start_x = (img_np.shape[1] - w) // 2
+        
+        centered[start_y:start_y+h, start_x:start_x+w] = digits_area
+        
+        return Image.fromarray(centered)
+
 
 
 class AdaptiveAugmentationBuilder:
@@ -40,30 +144,37 @@ class AdaptiveAugmentationBuilder:
         params = self.get_adaptive_params(image_size)
 
         return transforms.Compose([
+            transforms.Grayscale(num_output_channels=1),
             ExtractLetterWithMargin(margin=2, fill_white=True),
+            # CenterDigitsTransform(padding=10, fill_value=255),
+            SquarePad(fill_white=True),
+            # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             transforms.Resize(image_size),
-            # transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
-            Invert(),
-            transforms.RandomRotation(20),
-            AddRandomBlobs(p=0.5, num_blobs=(3, 5), 
-                          blob_size=params['blob_size'], intensity=(250, 255)),
-            AddRandomBlobs(p=0.5, num_blobs=(3, 5),
-                          blob_size=params['blob_size'], intensity=(0, 5)),
-            AddRandomBlackSpots(p=0.5, num_spots=(2, 5),
-                               spot_size=params['spot_size']),
-            RandomStrokeWidth(p=0.5, thickness_range=params['stroke_width']),
-            RandomBleed(p=0.5, blur_radius=params['blur_radius']),
-            RandomMissingPart(p=0.5, cut_size=params['cut_size']),
-            transforms.RandomAffine(
-                degrees=params['degrees'],
-                translate=params['translate'],
-                shear=params['shear']
-            ),
-            SimpleThinOrThicken(p=1, strength='light', min_thickness=1),
-            Invert(),
+            # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
+            # Invert(),
+            # ExtractLetterWithMargin(margin=2, fill_white=True),
+            transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+            # transforms.RandomResizedCrop(size=image_size, scale=(0.9, 1.1), ratio=(1, 1)),
+            transforms.RandomRotation(degrees=(-10, 10)),
+            # AddRandomBlobs(p=0.5, num_blobs=(3, 5), 
+            #               blob_size=params['blob_size'], intensity=(250, 255)),
+            # AddRandomBlobs(p=0.5, num_blobs=(3, 5),
+            #               blob_size=params['blob_size'], intensity=(0, 5)),
+            # AddRandomBlackSpots(p=0.5, num_spots=(2, 5),
+            #                    spot_size=params['spot_size']),
+            # RandomStrokeWidth(p=0.5, thickness_range=params['stroke_width']),
+            # RandomBleed(p=0.5, blur_radius=params['blur_radius']),
+            # RandomMissingPart(p=0.3, cut_size=params['cut_size']),
+            # transforms.RandomAffine(
+            #     degrees=params['degrees'],
+            #     translate=params['translate'],
+            #     # shear=params['shear'],
+            #     # scale=(0.7, 1.1)
+            # ),
+            # Invert(),
             
             # TODO: Is it needed?
-            transforms.Lambda(lambda x: x.convert('RGB') if x.mode != 'RGB' else x),
+            # transforms.Lambda(lambda x: x.convert('RGB') if x.mode != 'RGB' else x),
 
             transforms.Grayscale(num_output_channels=1),
             transforms.ToTensor(),
@@ -75,11 +186,14 @@ class AdaptiveAugmentationBuilder:
     def build_val_transform(self, image_size):
         
         return transforms.Compose([
-            ExtractLetterWithMargin(margin=2, fill_white=True),
+            transforms.Grayscale(num_output_channels=1),
+            ExtractLetterWithMargin(margin=10, fill_white=True),
+            # Invert(),
+            # CenterDigitsTransform(padding=10, fill_value=255),
+            SquarePad(fill_white=True),
             transforms.Resize(image_size),
-            Invert(),
-            SimpleThinOrThicken(p=1, strength='medium', min_thickness=1),
-            Invert(),
+            # SimpleThinOrThicken(p=1, strength='medium', is_black_symbol_on_white_background=True),
+            # Invert(),
             # transforms.Lambda(lambda x: 255 - np.array(x) if isinstance(x, Image.Image) else 255 - x),
             # transforms.ToPILImage(),  # обратно в PIL        
             transforms.Grayscale(num_output_channels=1),
@@ -159,15 +273,14 @@ class ExtractLetterWithMargin:
 class SimpleThinOrThicken:
     """Только утоньшение букв (делает их тонкими) - упрощенная версия"""
     
-    def __init__(self, p=0.9, strength='strong', min_thickness=1):
+    def __init__(self, p=0.9, strength='strong', is_black_symbol_on_white_background=True):
         """
         Args:
             p: вероятность применения (0-1)
             strength: 'light', 'medium', 'strong' или число итераций
-            min_thickness: минимальная толщина линии в пикселях (1-10)
         """
         self.p = p
-        self.min_thickness = min_thickness
+        self.is_black_symbol_on_white_background = is_black_symbol_on_white_background
         
         if strength == 'light':
             self.iterations = 1
@@ -190,18 +303,16 @@ class SimpleThinOrThicken:
         
         kernel = np.ones((3,3), np.uint8)
         
-        # Для оттенков серого
-        if len(img_np.shape) == 2:
-            # Просто применяем эрозию нужное количество раз
-            result = cv2.erode(img_np, kernel, iterations=self.iterations)
-            return Image.fromarray(result)
-        
-        # Для цветных
+
+        # Просто применяем эрозию нужное количество раз
+        # Эрозия (erode) - уменьшает белые области
+
+        if self.is_black_symbol_on_white_background:
+            result = cv2.dilate(img_np, kernel, iterations=self.iterations)
         else:
-            gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-            result_gray = cv2.erode(gray, kernel, iterations=self.iterations)
-            result = cv2.cvtColor(result_gray, cv2.COLOR_GRAY2RGB)
-            return Image.fromarray(result)
+            result = cv2.erode(img_np, kernel, iterations=self.iterations)
+        return Image.fromarray(result)
+
 
 
 class Invert:

@@ -1,6 +1,6 @@
 data:
   train_root: "../dataset/test (копия)/"
-  val_root: "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/validation"
+  val_root: ""
   image_size: 64
   train_split: 0.8
   num_workers: 4
@@ -11,7 +11,7 @@ model:
   dropout_rate: 0.5
   
 training:
-  batch_size: 128
+  batch_size: 64
   epochs: 20
   learning_rate: 0.0005
   weight_decay: 0.02
@@ -26,6 +26,6 @@ augmentation:
     enable_stroke_variation: true
     enable_bleed: true
     enable_missing_part: true
-    rotation_degrees: 10
+    rotation_degrees: 2
     translate: [0.1, 0.2]
     shear: 15

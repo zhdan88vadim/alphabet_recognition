@@ -28,6 +28,9 @@ def main():
     train_transform = aug_builder.build_train_transform(
         (config['data']['image_size'], config['data']['image_size'])
     )
+    # train_transform = aug_builder.build_val_transform(
+    #     (config['data']['image_size'], config['data']['image_size'])
+    # )
     val_transform = aug_builder.build_val_transform(
         (config['data']['image_size'], config['data']['image_size'])
     )
