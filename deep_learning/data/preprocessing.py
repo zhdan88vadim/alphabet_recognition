@@ -22,7 +22,7 @@ def preprocess_image(image):
     return gray, binary
 
 
-def segment_letters(image, min_area=300, max_area=7000, aspect_ratio_range=(0.3, 2.5)):
+def segment_letters(image, min_area=450, max_area=7000, aspect_ratio_range=(0.3, 2.5)):
     """Сегментирует буквы на изображении"""
     gray, binary = preprocess_image(image)
     

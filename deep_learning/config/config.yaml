@@ -1,5 +1,5 @@
 data:
-  train_root: "../dataset/test (копия)/"
+  train_root: "../dataset/"
   val_root: ""
   image_size: 64
   train_split: 0.8

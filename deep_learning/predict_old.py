@@ -37,8 +37,10 @@ class MultiLetterRecognizerDebug:
         ])
     
     def _load_model(self, model_path, mapping_path):
-        with open(mapping_path, 'r', encoding='utf-8') as f:
-            class_names = json.load(f)
+        # with open(mapping_path, 'r', encoding='utf-8') as f:
+        #     class_names = json.load(f)
+
+        class_names = checkpoint['class_names']            
         
         print(f"Count of classes: {len(class_names)}")
         checkpoint = torch.load(model_path, map_location=self.device)

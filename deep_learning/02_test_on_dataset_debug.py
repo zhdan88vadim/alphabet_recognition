@@ -56,11 +56,12 @@ class DatasetTester:
         os.makedirs(self.results_dir, exist_ok=True)
         
     def _load_model(self, model_path, mapping_path):
-        with open(mapping_path, 'r', encoding='utf-8') as f:
-            class_names = json.load(f)
+        # with open(mapping_path, 'r', encoding='utf-8') as f:
+        #     class_names = json.load(f)
         
         print(f"Count of classes: {len(class_names)}")
         checkpoint = torch.load(model_path, map_location=self.device)
+        class_names = checkpoint['class_names']
         
         from models.model import AlphabetRecognizer
         model = AlphabetRecognizer()
@@ -358,7 +359,7 @@ class DatasetTester:
 def main():
     # Путь к датасету
     dataset_path = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test_unique_only/"
-    dataset_path = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test (копия)/"
+    dataset_path = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/"
     
     # Создаем тестер
     tester = DatasetTester(

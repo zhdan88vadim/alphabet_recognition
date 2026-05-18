@@ -31,10 +31,11 @@ class AlphabetPredictor:
         os.makedirs(self.debug_dir, exist_ok=True)
     
     def _load_model(self, model_path, mapping_path):
-        with open(mapping_path, 'r', encoding='utf-8') as f:
-            class_names = json.load(f)
+        # with open(mapping_path, 'r', encoding='utf-8') as f:
+        #     class_names = json.load(f)
         
         checkpoint = torch.load(model_path, map_location=self.device)
+        class_names = checkpoint['class_names']
 
         model = AlphabetRecognizer(num_classes=len(class_names))
         

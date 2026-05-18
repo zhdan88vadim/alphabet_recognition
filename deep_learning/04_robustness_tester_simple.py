@@ -80,12 +80,14 @@ def load_data(data_root):
 # ============================================
 
 def load_cnn_model(model_path, mapping_path, device):
-    with open(mapping_path, 'r', encoding='utf-8') as f:
-        class_names = json.load(f)
-    if isinstance(class_names, dict):
-        class_names = list(class_names.values())
+    # with open(mapping_path, 'r', encoding='utf-8') as f:
+    #     class_names = json.load(f)
+    # if isinstance(class_names, dict):
+    #     class_names = list(class_names.values())
     
     checkpoint = torch.load(model_path, map_location=device)
+    class_names = checkpoint['class_names']
+
     model = AlphabetRecognizer()
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
@@ -303,7 +305,7 @@ def show_confusion_matrix(model, transform, device, X_test, y_test, class_names,
 
 def main():
     # Укажите свои пути
-    # data_root = "/media/vadim/1TB_SSD/my_github/alphabet_recognition/dataset/test (копия)/"
+    # data_root = "/media/vadim/1TB_SSD/my_github/alphabet_recognition/dataset/"
     data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test_unique_only/"
     model_path = "best_alphabet_model.pth"
     mapping_path = "class_mapping.json"

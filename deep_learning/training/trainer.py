@@ -145,7 +145,7 @@ class ModelTrainer:
         
         # Визуализируем
         fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(cm, annot=False, fmt='d', cmap='Blues', ax=ax)
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
         ax.set_xlabel('Predicted')
         ax.set_ylabel('True')
         ax.set_title(f'Confusion Matrix (Epoch {epoch})')
@@ -154,6 +154,8 @@ class ModelTrainer:
         if self.use_mlflow:
             mlflow.log_figure(fig, f"confusion_matrix_epoch_{epoch}.png")
         
+        plt.savefig(f"../readme_images/confusion_matrix_epoch_{epoch}.png", dpi=150, bbox_inches='tight')
+
         plt.close()
     
     def train(self, train_loader, val_loader, class_names, early_stopping):
@@ -206,10 +208,7 @@ class ModelTrainer:
                     current_lr = self.optimizer.param_groups[0]['lr']
                     mlflow.log_metric("learning_rate", current_lr, step=epoch)
                 
-                # Каждые N эпох логируем confusion matrix
-                if (epoch + 1) % 5 == 0 and self.use_mlflow:
-                    self.log_confusion_matrix(val_loader, class_names, epoch + 1)
-                
+               
                 # Scheduler и Early Stopping
                 self.scheduler.step(val_acc)
                 
@@ -220,16 +219,19 @@ class ModelTrainer:
                     self._save_checkpoint(epoch, val_acc, class_names)
                     print(f"  ✨ Сохранена лучшая модель (Acc: {val_acc:.2f}%)")
                 
-
                     # Логируем лучшую модель в MLflow
                     if self.use_mlflow:
                         mlflow.log_metric("best_val_accuracy", val_acc, step=epoch)
-                        
+
+                        if epoch > 10:
+                            self.log_confusion_matrix(val_loader, class_names, epoch + 1)
+
                         # Создаем пример входных данных для трассировки
                         # Берем один батч из train_loader
-                        sample_input, _ = next(iter(train_loader))
-                        sample_input = sample_input[:1].to(self.device)  # Берем один пример
+                        # sample_input, _ = next(iter(train_loader))
+                        # sample_input = sample_input[:1].to(self.device)  # Берем один пример
                         
+
                         model_name = f"alphabet_model_{self.best_acc:.2f}".replace('.', '_')
                         
                         # Сохраняем модель с input_example
@@ -237,8 +239,9 @@ class ModelTrainer:
                             pytorch_model=self.model,
                             name="best_model",
                             registered_model_name=model_name,
-                            serialization_format='pt2',  # безопасный формат
-                            input_example=sample_input,  # ← обязательно для pt2
+                            # serialization_format='pt2',  # безопасный формат
+                            serialization_format='pickle',
+                            # input_example=sample_input,  # ← обязательно для pt2
                             pip_requirements=["torch>=2.0.0", "torchvision>=0.15.0"]
                         )
                 
@@ -288,6 +291,7 @@ class ModelTrainer:
         ax1.set_title('Training and Validation Loss')
         ax1.legend()
         ax1.grid(True)
+        plt.savefig('../readme_images/training_validation_loss.png', dpi=150, bbox_inches='tight')
         mlflow.log_figure(fig1, "training_validation_loss.png")
         
         # График accuracy
@@ -299,6 +303,7 @@ class ModelTrainer:
         ax2.set_title('Training and Validation Accuracy')
         ax2.legend()
         ax2.grid(True)
+        plt.savefig('../readme_images/training_validation_accuracy.png', dpi=150, bbox_inches='tight')
         mlflow.log_figure(fig2, "training_validation_accuracy.png")
         
         plt.close('all')

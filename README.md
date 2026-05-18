@@ -116,12 +116,12 @@ This approach showed **quite good results**:
 ## 📊 Training Results
 
 ### Loss Curves
-![Training and Validation Loss](readme_images/tb_loss.png)
+![Training and Validation Loss](readme_images/training_validation_loss.png)
 
 *Training completed in 20 epochs with early stopping*
 
 ### Accuracy
-![Accuracy Plot](readme_images/tb_accuracy.png)
+![Accuracy Plot](readme_images/training_validation_accuracy.png)
 
 - **Best Validation Accuracy**: 98.42%
 - **Test Accuracy**: ---%
@@ -139,14 +139,24 @@ This approach showed **quite good results**:
 | ![Original 3](readme_images/2_1.png) | ![Original 3](readme_images/2.png) |
 | ![Original 4](readme_images/3_1.png) | ![Original 4](readme_images/3.png) |
 
+
+## result_original_and_predict
+
+![Original 4](readme_images/result_original_and_predict.png)
+
+
 ## Confusion matrix
 ![Confusion matrix](readme_images/confusion_matrix.png)
 
-## 🏃‍♂️ Reproduce Results
+
+## Reproduce Results
 
 ```bash
 conda env create -f environment.yaml
 conda activate alphabet_env
+
+mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+
 python train.py
 ```
 
@@ -154,7 +164,7 @@ python train.py
 ## 📋 TODO (Priority: 🔴 High → 🟡 Medium → 🟢 Low)
 
 ### Data Analysis
-- 🔴 [ ] Add EDA results (class distribution, image statistics, sample visualizations)
+- [x] Add EDA results (class distribution, image statistics, sample visualizations)
 - 🔴 [ ] Analyze misclassifications (which letters are most confused)
 - 🟡 [ ] Add class weights to handle imbalanced data
 
@@ -171,7 +181,7 @@ python train.py
 - 🟢 [ ] Add gradient clipping
 
 ### Evaluation & Metrics
-- 🔴 [ ] Plot confusion matrix
+- [x] Plot confusion matrix
 - 🔴 [ ] Add precision, recall, F1-score per class
 - 🟡 [ ] Calculate inference time (FPS) on CPU and GPU
 - 🟢 [ ] Add top-2 and top-3 accuracy
