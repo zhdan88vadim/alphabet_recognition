@@ -9,3 +9,4 @@ training_history.json
 runs/
 TODO.md
 doc/
+deep_learning/mlruns/

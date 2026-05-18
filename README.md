@@ -7,6 +7,63 @@ conda activate /mnt/ntfs/learn_ML/test_classes/Тестовое\ Python\ ML,CV/�
 
 -->
 
+## General Description
+
+I took on a test assignment to recognize letters in images. A dataset was provided for this task.
+
+After analyzing the dataset, I noticed that the letters in it have **thick lines**, but the actual task requires recognizing **thin letters written with a regular pen**.
+
+<img src="readme_images/original_test_img.png" width="50%">
+
+### The Problem
+
+| Aspect | Dataset | Target |
+|--------|---------|--------|
+| Line thickness | Thick | Thin (pen-written) |
+| Style | Bold/display font | Handwriting-like |
+
+This is a **domain shift** problem — the training data distribution differs from the real inference data.
+
+### My Solution
+
+
+To address this, I added a **preprocessing step** that converts thick letters to thin ones. This transformation was applied to **both training and validation data**.
+
+Additionally, the dataset had large empty margins around the letters. I cropped out the excess whitespace to maximize useful data while significantly saving memory.
+
+### Cropping vs Padding
+
+| Technique | Description | When to use |
+|-----------|-------------|-------------|
+| **Cropping** | Remove empty borders around the letter | When whitespace is excessive and offers no value |
+| **Padding** | Add borders around the image | To preserve aspect ratio or create square images |
+
+**My approach:** I used cropping to eliminate unnecessary empty space, then applied padding to create uniform square images before resizing.
+
+### Complete preprocessing pipeline:
+
+1. **Crop** — remove empty margins around the letter
+2. **Padding** — add minimal borders to preserve letter proportions (avoid distortion)
+3. **Thinning** — convert thick strokes to thin (pen-like)
+4. **Resize** — to 64×64 for training
+
+### Benefits of my approach:
+
+- Preserves letter structure
+- Reduces noise (empty space)
+- Maintains aspect ratio
+- Saves memory (~80% reduction)
+- Forces model to focus only on relevant features
+
+
+### Results
+
+This approach showed **quite good results**:
+- The model learned to recognize features of thin letters
+- Validation performance improved significantly
+- Better generalization to real pen-written letters
+
+
 ## EDA Report for Letter Dataset
 
 ### 1. Image Dimensions
@@ -70,7 +127,8 @@ conda activate /mnt/ntfs/learn_ML/test_classes/Тестовое\ Python\ ML,CV/�
 - **Test Accuracy**: ---%
 
 ### Data Augmentation Examples
-![Augmented Samples](readme_images/tb_aug_images.png)
+<img src="readme_images/tb_aug_images.png" width="50%">
+<!-- ![Augmented Samples](readme_images/tb_aug_images.png) -->
 
 ## 🔍 Recognition Examples
 
