@@ -103,8 +103,9 @@ def visualize_results(image, results, debug_dir):
     plt.title('Cut letters in their original positions')
     plt.axis('off')
     
-    plt.suptitle(f"Recognized text: {''.join([r['letter'] for r in results])}")
+    # plt.suptitle(f"Recognized text: {''.join([r['letter'] for r in results])}")
     plt.tight_layout()
+    plt.savefig('../readme_images/result_original_and_predict.png', dpi=150, bbox_inches='tight')
     plt.show()
 
     save_path_1 = f"{debug_dir}/1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"

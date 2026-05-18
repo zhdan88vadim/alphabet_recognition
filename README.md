@@ -52,7 +52,7 @@ Additionally, the dataset had large empty margins around the letters. I cropped 
 - Preserves letter structure
 - Reduces noise (empty space)
 - Maintains aspect ratio
-- Saves memory (~80% reduction)
+- Saves memory
 - Forces model to focus only on relevant features
 
 

@@ -98,21 +98,20 @@ def load_cnn_model(model_path, mapping_path, device):
 
 def get_cnn_transform():
     return transforms.Compose([
-        # transforms.Grayscale(num_output_channels=1),
+        transforms.Grayscale(num_output_channels=1),
         ExtractLetterWithMargin(margin=2, fill_white=True),
         # CenterDigitsTransform(padding=10, fill_value=255),
         SquarePad(fill_white=True),
 
         # HERE image already 64 px
         # need make less strength
-        # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
         
         transforms.Resize((64, 64)),
+        SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5])
 
         # transforms.Grayscale(num_output_channels=1),
-        # ExtractLetterWithMargin(margin=2, fill_white=True),
         # # Invert(),
         # CenterDigitsTransform(padding=2, fill_value=0),
         # SquarePad(fill_white=False),

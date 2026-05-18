@@ -1,6 +1,7 @@
 
 from data.annotation import visualize_results
 from data.preprocessing import segment_letters
+from data.augmentation import ExtractLetterWithMargin, SquarePad
 import torch
 from torchvision import transforms
 from PIL import Image
@@ -18,6 +19,8 @@ class AlphabetPredictor:
         self.model, self.class_names = self._load_model(model_path, mapping_path)
 
         self.transform = transforms.Compose([
+            ExtractLetterWithMargin(margin=10, fill_white=True),
+            SquarePad(fill_white=True),
             transforms.Resize((64, 64)),
             transforms.Grayscale(num_output_channels=1),
             transforms.ToTensor(),
