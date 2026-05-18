@@ -29,3 +29,6 @@ augmentation:
     rotation_degrees: 2
     translate: [0.1, 0.2]
     shear: 15
+
+mlflow_experiment_name: "alphabet_recognition_experiments"
+run_name: "baseline_64x64_adamw"    
