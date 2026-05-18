@@ -7,6 +7,54 @@ conda activate /mnt/ntfs/learn_ML/test_classes/Тестовое\ Python\ ML,CV/�
 
 -->
 
+## EDA Report for Letter Dataset
+
+### 1. Image Dimensions
+- **All images have the same size:** 278×278 pixels
+- **To save memory and speed up training** we will resize images to 64×64 pixels (preserving aspect ratio)
+
+### 2. Class Imbalance
+- **Total images:** 33,141
+- **Mean per class:** 1,004.3
+- **Minimum class:** Б (496 samples)
+- **Maximum class:** Я (1,200 samples)
+- **Imbalance ratio:** 2.42
+
+**Impact assessment:** For a convolutional network, an imbalance of 2.42 is considered **moderate** and not critical. Modern CNNs are quite robust to this ratio.
+
+**Solution:** Leave as is for now. If the model performs poorly on class Б, we will add:
+- Class weights
+- Augmentation for minority classes
+
+### 3. Training Strategy
+- **Not much data** (33k images) — risk of overfitting
+- Will use a **simple convolutional network** (3-4 conv layers)
+- Required regularization methods:
+  - Dropout (0.3-0.5)
+  - Early stopping
+  - Data augmentation
+
+### 4. Final Plan
+1. Resize images to 64×64
+2. Normalize pixels to [0, 1]
+3. Train/val/test split (70/15/15)
+4. Train simple CNN with regularization
+5. Monitor performance on class Б
+
+### 5. Risks
+- **Overfitting** — due to limited amount of data
+- **Class Б** — least represented (496 samples)
+- **Mitigation:** augmentation + dropout + early stopping
+
+## Class distribution
+![Class distribution](readme_images/eda_class_distribution.png)
+
+## Examples of letters from the dataset
+![Examples of letters from the dataset](readme_images/eda_visualize_samples_per_class.png)
+
+
+
+
 
 ## 📊 Training Results
 
