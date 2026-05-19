@@ -140,9 +140,25 @@ This approach showed **quite good results**:
 | ![Original 4](readme_images/3_1.png) | ![Original 4](readme_images/3.png) |
 
 
-## result_original_and_predict
+## Model Robustness Testing
 
-![Original 4](readme_images/result_original_and_predict.png)
+Testing the CNN model's resistance to image distortions.
+
+### Transformations Applied
+
+| Distortion | Range | Description |
+|------------|-------|-------------|
+| **Translation** | ±5-10 px | Shifting from center |
+| **Rotation** | -20° to +20° | Angular distortion |
+| **Scaling** | 0.5× to 1.2× | Size variation |
+
+
+![Example 1](readme_images/cnn_distorted_predictions.png)
+
+
+<!-- 
+![Example 2](readme_images/result_original_and_predict.png) 
+-->
 
 
 ## Confusion matrix

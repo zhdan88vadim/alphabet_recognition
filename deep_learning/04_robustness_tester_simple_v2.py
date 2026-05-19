@@ -11,12 +11,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-# Импорт вашей модели (убедитесь, что путь правильный)
 from models.model import AlphabetRecognizer
-
-# ============================================
-# ФУНКЦИИ ИСКАЖЕНИЙ (как в SVM коде)
-# ============================================
 
 def apply_rotation(image, angle):
     h, w = image.shape
@@ -48,7 +43,7 @@ def apply_scale(image, scale_factor):
     return scaled
 
 # ============================================
-# ЗАГРУЗКА ТЕСТОВЫХ ДАННЫХ
+# LOAD TEST DATA
 # ============================================
 
 def load_data(data_root):
@@ -57,7 +52,7 @@ def load_data(data_root):
     class_to_idx = {name: i for i, name in enumerate(class_names)}
     
     X, y = [], []
-    print("Загрузка тестовых изображений...")
+    print("Loading test images...")
     for class_name in class_names:
         class_dir = data_root / class_name
         for img_path in class_dir.glob("*.*"):
@@ -75,19 +70,14 @@ def load_data(data_root):
     
     X = np.array(X)
     y = np.array(y)
-    print(f"Загружено {len(X)} изображений, классов: {len(class_names)}")
+    print(f"Loaded {len(X)} images, classes: {len(class_names)}")
     return X, y, class_names
 
 # ============================================
-# ЗАГРУЗКА CNN МОДЕЛИ
+# LOAD CNN MODEL
 # ============================================
 
 def load_cnn_model(model_path, mapping_path, device):
-    # with open(mapping_path, 'r', encoding='utf-8') as f:
-    #     class_names = json.load(f)
-    # if isinstance(class_names, dict):
-    #     class_names = list(class_names.values())
-    
     checkpoint = torch.load(model_path, map_location=device)
     class_names = checkpoint['class_names']
 
@@ -95,50 +85,23 @@ def load_cnn_model(model_path, mapping_path, device):
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()
-    print(f"CNN модель загружена: {model_path}, классов: {len(class_names)}")
+    print(f"CNN model loaded: {model_path}, classes: {len(class_names)}")
     return model, class_names
 
 def get_cnn_transform():
     return transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
         ExtractLetterWithMargin(margin=2, fill_white=True),
-        # CenterDigitsTransform(padding=10, fill_value=255),
         SquarePad(fill_white=True),
-
-        # HERE image already 64 px
-        # need make less strength
-        
         transforms.Resize((64, 64)),
         SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5])
-
-        # transforms.Grayscale(num_output_channels=1),
-        # # Invert(),
-        # CenterDigitsTransform(padding=2, fill_value=0),
-        # SquarePad(fill_white=False),
-        # transforms.Resize((64, 64)),
-        # SimpleThinOrThicken(p=1, strength='medium', is_black_symbol_on_white_backround=True),
-        # Invert(),
-        # transforms.ToTensor(),
-        # transforms.Normalize(mean=[0.5], std=[0.5])        
-        # ExtractLetterWithMargin(margin=2, fill_white=True),
-        # # Invert(),
-        # CenterDigitsTransform(padding=2, fill_value=255),
-        # SquarePad(fill_white=True),
-        # transforms.Resize((64, 64)),
-        # # Invert(),
-        # # SimpleThinOrThicken(p=1, strength='light', min_thickness=1),
-        # # transforms.Lambda(lambda x: x.convert('RGB') if x.mode != 'RGB' else x),
-        # transforms.Grayscale(num_output_channels=1),
-        # transforms.ToTensor(),
-        # transforms.Normalize(mean=[0.5], std=[0.5])
     ])
 
 def visualize_augmented_samples(model, transform, device, X_test, y_test, class_names, num_samples=5):
     """
-    Показывает в отдельном окне несколько случайных изображений
-    после полного пайплайна аугментаций (то, что видит модель)
+    Shows random images after full augmentation pipeline (what the model sees)
     """
     indices = np.random.choice(len(X_test), num_samples, replace=False)
     fig, axes = plt.subplots(1, num_samples, figsize=(num_samples * 3, 3))
@@ -147,14 +110,11 @@ def visualize_augmented_samples(model, transform, device, X_test, y_test, class_
     
     for i, idx in enumerate(indices):
         img = X_test[idx].copy()
-        # Применяем тот же пайплайн, что и перед подачей в модель
         img_tensor = preprocess_for_cnn(img, transform).to(device)
-        # Денормализуем для отображения
         img_vis = img_tensor.squeeze().cpu() * 0.5 + 0.5
         img_vis = np.clip(img_vis.numpy(), 0, 1) * 255
         img_vis = img_vis.astype(np.uint8)
         
-        # Получаем предсказание
         with torch.no_grad():
             outputs = model(img_tensor)
             probs = torch.softmax(outputs, dim=1).cpu().numpy()[0]
@@ -170,34 +130,21 @@ def visualize_augmented_samples(model, transform, device, X_test, y_test, class_
                           fontsize=9, color=color)
         axes[i].axis('off')
     
-    plt.suptitle("Примеры изображений после аугментаций (вход модели)", fontsize=12)
+    plt.suptitle("Images after augmentations (model input)", fontsize=12)
     plt.tight_layout()
-    plt.show(block=True)  # блокирует выполнение, пока окно не закроют
-    print("✅ Окно с примерами закрыто, продолжаем...")
-
-# def preprocess_for_cnn(image_np, transform):
-#     # Инвертируем, чтобы буквы были белыми на чёрном (как ожидает модель)
-#     inverted = cv2.bitwise_not(image_np)
-#     img_pil = Image.fromarray(inverted)
-#     return transform(img_pil).unsqueeze(0)
-#     # inverted = cv2.bitwise_not(image_np)
-#     # img_pil = Image.fromarray(inverted)
-#     # return transform(img_pil).unsqueeze(0)
+    plt.show(block=True)
+    print("✅ Window closed, continuing...")
 
 def preprocess_for_cnn(image_np, transform):
-    # Определяем, светлый ли фон (белый)
-    # Для бинарного изображения: если среднее > 127, то преобладает белый цвет
-    # if np.mean(image_np) > 127:
-    #     image_np = cv2.bitwise_not(image_np)
     img_pil = Image.fromarray(image_np)
     return transform(img_pil).unsqueeze(0)
 
 # ============================================
-# ПРЕДСКАЗАНИЯ С БАТЧАМИ (исправление OOM)
+# BATCH PREDICTIONS (OOM fix)
 # ============================================
 
 def predict_batch(model, images_np, transform, device, batch_size=64):
-    """Предсказание для всех изображений с разбиением на батчи"""
+    """Predict for all images with batching"""
     model.eval()
     all_probs = []
     n = len(images_np)
@@ -224,14 +171,14 @@ def predict_single(model, image_np, transform, device):
     return pred_idx, confidence, top3
 
 # ============================================
-# ВИЗУАЛИЗАЦИИ
+# VISUALIZATIONS
 # ============================================
 
-def show_distorted_predictions(model, transform, device, X_test, y_test, class_names, n_samples=15):
+def show_distorted_predictions(model, transform, device, X_test, y_test, class_names, n_samples=10):
     indices = np.random.choice(len(X_test), n_samples, replace=False)
     
     distortions = [
-        ('Оригинал', None),
+        ('Original', None),
         ('10°', lambda x: apply_rotation(x, 10)),
         ('-10°', lambda x: apply_rotation(x, -10)),
         ('20°', lambda x: apply_rotation(x, 20)),
@@ -246,7 +193,7 @@ def show_distorted_predictions(model, transform, device, X_test, y_test, class_n
     ]
     
     rows = len(indices)
-    cols = len(distortions) + 1  # +1 для колонки "После аугментаций (оригинал)"
+    cols = len(distortions) + 1
     fig, axes = plt.subplots(rows, cols, figsize=(cols*2, rows*2.5))
     if rows == 1:
         axes = axes.reshape(1, -1)
@@ -255,14 +202,12 @@ def show_distorted_predictions(model, transform, device, X_test, y_test, class_n
         true_label = class_names[y_test[idx]]
         original_img = X_test[idx].copy()
         
-        # Колонки с искажениями
         for col, (dist_name, dist_func) in enumerate(distortions):
             ax = axes[row, col]
             img = original_img.copy()
             if dist_func:
                 img = dist_func(img)
             
-            # Предсказание для искажённого изображения
             pred_idx, conf, _ = predict_single(model, img, transform, device)
             pred_label = class_names[pred_idx]
             color = 'lime' if pred_idx == y_test[idx] else 'red'
@@ -275,16 +220,14 @@ def show_distorted_predictions(model, transform, device, X_test, y_test, class_n
             if row == 0:
                 ax.set_title(dist_name, fontsize=8)
             if col == 0 and row == len(indices)//2:
-                ax.set_ylabel('Искажения', fontsize=10, fontweight='bold')
+                ax.set_ylabel('Distortions', fontsize=10, fontweight='bold')
             if col == 0:
                 ax.text(-0.15, 0.5, true_label, transform=ax.transAxes,
                         fontsize=10, color='white', fontweight='bold', ha='center', va='center',
                         rotation=90, bbox=dict(boxstyle='round', facecolor='blue', alpha=0.8))
         
-        # Последняя колонка: оригинал после полных аугментаций (вход модели)
         ax_aug = axes[row, -1]
         img_aug = apply_transform_for_display(original_img, transform)
-        # Предсказание для аугментированного оригинала
         pred_idx, conf, _ = predict_single(model, original_img, transform, device)
         pred_label = class_names[pred_idx]
         color = 'lime' if pred_idx == y_test[idx] else 'red'
@@ -295,40 +238,36 @@ def show_distorted_predictions(model, transform, device, X_test, y_test, class_n
                     bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
         ax_aug.axis('off')
         if row == 0:
-            ax_aug.set_title('После аугментаций\n(оригинал)', fontsize=8)
+            ax_aug.set_title('After augmentations\n(original)', fontsize=8)
         if row == len(indices)//2:
-            ax_aug.set_ylabel('Вход модели', fontsize=10, fontweight='bold')
+            ax_aug.set_ylabel('Model input', fontsize=10, fontweight='bold')
     
-    plt.suptitle("Распознавание CNN с искажениями + вход модели для оригинала", fontsize=12, fontweight='bold')
+    plt.suptitle("CNN recognition with distortions + model input for original", fontsize=12, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('cnn_distorted_predictions.png', dpi=150, bbox_inches='tight')
+    plt.savefig('../readme_images/cnn_distorted_predictions.png', dpi=300, bbox_inches='tight')
     plt.show()
-    print("✅ Сохранено: cnn_distorted_predictions.png")
-
-
+    print("✅ Saved: cnn_distorted_predictions.png")
 
 def show_misclassified(model, transform, device, X_test, y_test, class_names, n_samples=10, batch_size=64):
-    print("Вычисление предсказаний для всех изображений...")
+    print("Computing predictions for all images...")
     probs_all = predict_batch(model, X_test, transform, device, batch_size)
     y_pred = np.argmax(probs_all, axis=1)
     
     mis_idx = np.where(y_pred != y_test)[0]
     if len(mis_idx) == 0:
-        print("🎉 Нет ошибок!")
+        print("🎉 No errors!")
         return
     
-    print(f"Ошибок: {len(mis_idx)}/{len(y_test)} ({len(mis_idx)/len(y_test)*100:.2f}%)")
+    print(f"Errors: {len(mis_idx)}/{len(y_test)} ({len(mis_idx)/len(y_test)*100:.2f}%)")
     
-    # ТОП-3 частых ошибок
     error_pairs = defaultdict(int)
     for idx in mis_idx:
         error_pairs[(y_test[idx], y_pred[idx])] += 1
-    print("\n🏆 ТОП-3 ОШИБКИ:")
+    print("\n🏆 TOP-3 ERRORS:")
     for i, ((true, pred), cnt) in enumerate(sorted(error_pairs.items(), key=lambda x: -x[1])[:3]):
         total = np.sum(y_test == true)
         print(f"   {i+1}. {class_names[true]} → {class_names[pred]}: {cnt} ({cnt/total*100:.1f}%)")
     
-    # Показываем примеры
     n_show = min(n_samples, len(mis_idx))
     selected = np.random.choice(mis_idx, n_show, replace=False)
     cols = min(5, n_show)
@@ -355,44 +294,40 @@ def show_misclassified(model, transform, device, X_test, y_test, class_names, n_
     for i in range(n_show, len(axes)):
         axes[i].axis('off')
     
-    plt.suptitle(f"Ошибочные предсказания CNN (всего: {len(mis_idx)})", fontsize=14)
+    plt.suptitle(f"CNN misclassifications (total: {len(mis_idx)})", fontsize=14)
     plt.tight_layout()
     plt.savefig('cnn_misclassified.png', dpi=150, bbox_inches='tight')
     plt.show()
-    print("✅ Сохранено: cnn_misclassified.png")
+    print("✅ Saved: cnn_misclassified.png")
     
-    # Детали в консоли
-    print("\n📊 ДЕТАЛИ ОШИБОК В КОНСОЛИ:")
+    print("\n📊 ERROR DETAILS IN CONSOLE:")
     print("="*60)
     for i, idx in enumerate(selected[:5]):
-        print(f"\n{i+1}. Индекс {idx}:")
-        print(f"   Истинная: {class_names[y_test[idx]]}")
-        print(f"   Предсказано: {class_names[y_pred[idx]]}")
+        print(f"\n{i+1}. Index {idx}:")
+        print(f"   True: {class_names[y_test[idx]]}")
+        print(f"   Predicted: {class_names[y_pred[idx]]}")
         probs = probs_all[idx]
         top3_idx = np.argsort(probs)[-3:][::-1]
         for rank, cid in enumerate(top3_idx):
-            mark = "← ОШИБКА" if rank == 0 and cid != y_test[idx] else "← ВЕРНО" if cid == y_test[idx] else ""
+            mark = "← ERROR" if rank == 0 and cid != y_test[idx] else "← CORRECT" if cid == y_test[idx] else ""
             print(f"      {rank+1}. {class_names[cid]}: {probs[cid]*100:.1f}% {mark}")
 
 def apply_transform_for_display(img_np, transform):
     """
-    Применяет полный пайплайн трансформаций (кроме Normalize) к numpy-изображению
-    и возвращает uint8 массив для визуализации.
+    Applies full transform pipeline (except Normalize) to numpy image
+    and returns uint8 array for visualization
     """
-    # Применяем все трансформации (включая ToTensor и Normalize)
     img_pil = Image.fromarray(img_np)
-    tensor = transform(img_pil).unsqueeze(0)  # [1,1,64,64], нормализованный
+    tensor = transform(img_pil).unsqueeze(0)
     
-    # Денормализация: mean=0.5, std=0.5 -> (tensor * 0.5 + 0.5)
     tensor_vis = tensor * 0.5 + 0.5
-    # Обрезаем значения до [0,1] и конвертируем в numpy
     img_vis = tensor_vis.squeeze().cpu().numpy()
     img_vis = np.clip(img_vis, 0, 1)
     img_vis = (img_vis * 255).astype(np.uint8)
     return img_vis
 
 def show_confusion_matrix(model, transform, device, X_test, y_test, class_names, batch_size=64):
-    print("Вычисление матрицы ошибок...")
+    print("Computing confusion matrix...")
     probs = predict_batch(model, X_test, transform, device, batch_size)
     y_pred = np.argmax(probs, axis=1)
     cm = confusion_matrix(y_test, y_pred)
@@ -400,16 +335,16 @@ def show_confusion_matrix(model, transform, device, X_test, y_test, class_names,
     plt.figure(figsize=(12, 10))
     sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrRd',
                 xticklabels=class_names, yticklabels=class_names,
-                cbar_kws={'label': 'Количество'})
-    plt.xlabel('Предсказанный класс')
-    plt.ylabel('Истинный класс')
-    plt.title('Матрица ошибок CNN', fontsize=14, fontweight='bold')
+                cbar_kws={'label': 'Count'})
+    plt.xlabel('Predicted class')
+    plt.ylabel('True class')
+    plt.title('CNN Confusion Matrix', fontsize=14, fontweight='bold')
     plt.tight_layout()
     plt.savefig('cnn_confusion_matrix.png', dpi=150)
     plt.show()
-    print("✅ Сохранено: cnn_confusion_matrix.png")
+    print("✅ Saved: cnn_confusion_matrix.png")
     
-    print("\n📊 Статистика по классам:")
+    print("\n📊 Per-class statistics:")
     for i, name in enumerate(class_names):
         total = np.sum(y_test == i)
         correct = cm[i, i]
@@ -417,7 +352,7 @@ def show_confusion_matrix(model, transform, device, X_test, y_test, class_names,
         print(f"   {name}: {correct}/{total} ({acc:.1f}%)")
 
 # ============================================
-# ОСНОВНАЯ ФУНКЦИЯ
+# MAIN FUNCTION
 # ============================================
 
 def main():
@@ -428,47 +363,42 @@ def main():
     
     model_path = "best_alphabet_model.pth"
     mapping_path = "class_mapping.json"
-    batch_size = 64  # уменьшите до 32, если всё ещё не хватает памяти
+    batch_size = 64
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Используется устройство: {device}")
+    print(f"Device: {device}")
     
-    # Загрузка данных
     X, y, data_class_names = load_data(data_root)
     
-    # Загрузка модели
     model, cnn_class_names = load_cnn_model(model_path, mapping_path, device)
     
-    # Сверка классов (если не совпадают, используем классы модели)
     if set(data_class_names) != set(cnn_class_names):
-        print("⚠️ Внимание: классы в датасете и модели различаются!")
-        print(f"   Датасет: {sorted(data_class_names)}")
-        print(f"   Модель: {sorted(cnn_class_names)}")
-        # Здесь можно добавить переиндексацию, если нужно.
-        # По умолчанию используем классы модели.
+        print("⚠️ Warning: Dataset and model classes differ!")
+        print(f"   Dataset: {sorted(data_class_names)}")
+        print(f"   Model: {sorted(cnn_class_names)}")
+    
     class_names = cnn_class_names
-    # class_names = data_class_names
     
     transform = get_cnn_transform()
 
     visualize_augmented_samples(model, transform, device, X, y, class_names, num_samples=5)
     
     print("\n" + "="*60)
-    print("Тестирование устойчивости CNN модели")
+    print("Testing CNN Model Robustness")
     print("="*60)
     
-    print("\n1. Распознавание с искажениями...")
+    print("\n1. Recognition with distortions...")
     show_distorted_predictions(model, transform, device, X, y, class_names, n_samples=15)
     
-    print("\n2. Ошибочные предсказания...")
+    print("\n2. Misclassifications...")
     show_misclassified(model, transform, device, X, y, class_names, n_samples=40, batch_size=batch_size)
     
-    print("\n3. Матрица ошибок...")
+    print("\n3. Confusion matrix...")
     show_confusion_matrix(model, transform, device, X, y, class_names, batch_size=batch_size)
     
     print("\n" + "="*60)
-    print("✅ Готово!")
-    print("Сохранены файлы:")
+    print("✅ Done!")
+    print("Saved files:")
     print("   • cnn_distorted_predictions.png")
     print("   • cnn_misclassified.png")
     print("   • cnn_confusion_matrix.png")

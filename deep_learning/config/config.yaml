@@ -31,4 +31,4 @@ augmentation:
     shear: 15
 
 mlflow_experiment_name: "alphabet_recognition_experiments"
-run_name: "baseline_64x64_adamw"    
+run_name: "baseline_64x64_adamw_aug2"    

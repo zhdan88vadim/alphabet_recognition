@@ -144,8 +144,10 @@ class ModelTrainer:
         cm = confusion_matrix(all_labels, all_preds)
         
         # Визуализируем
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+        fig, ax = plt.subplots(figsize=(12, 10))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrRd', ax=ax,
+                xticklabels=class_names, yticklabels=class_names,
+                cbar_kws={'label': 'Count'})
         ax.set_xlabel('Predicted')
         ax.set_ylabel('True')
         ax.set_title(f'Confusion Matrix (Epoch {epoch})')

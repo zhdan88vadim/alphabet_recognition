@@ -10,3 +10,4 @@ runs/
 TODO.md
 doc/
 deep_learning/mlruns/
+deep_learning/mlflow.db

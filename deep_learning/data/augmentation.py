@@ -149,7 +149,7 @@ class AdaptiveAugmentationBuilder:
             SquarePad(fill_white=True),
             # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             transforms.Resize(image_size),
-            SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
+            SimpleThinOrThicken(p=0.8, strength='light', is_black_symbol_on_white_background=True),
             # Invert(),
             # ExtractLetterWithMargin(margin=2, fill_white=True),
             transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
