@@ -118,7 +118,7 @@ This approach showed **quite good results**:
 ### Loss Curves
 ![Training and Validation Loss](readme_images/training_validation_loss.png)
 
-*Training completed in 20 epochs with early stopping*
+*Training completed with early stopping*
 
 ### Accuracy
 ![Accuracy Plot](readme_images/training_validation_accuracy.png)
