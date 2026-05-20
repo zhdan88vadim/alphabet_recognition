@@ -11,3 +11,5 @@ TODO.md
 doc/
 deep_learning/mlruns/
 deep_learning/mlflow.db
+dataset_val/
+classic_ml/mlruns/

@@ -64,6 +64,10 @@ def load_test_data(data_root):
         ExtractLetterWithMargin(margin=4, fill_white=True),
         SquarePad(fill_white=True),
         transforms.Resize((64, 64)),
+        # ONLY FOR BOLD SYMBOLS
+        # ONLY FOR BOLD SYMBOLS
+        # ONLY FOR BOLD SYMBOLS
+        SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
         Invert(),
         transforms.Grayscale(num_output_channels=1),
         transforms.ToTensor(),
@@ -311,7 +315,8 @@ def show_svm_confusion_matrix(pipeline, hog, X_test, y_test, class_names):
 
 def main():
     # Paths
-    data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/classified_by_letter/"
+    # data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/classified_by_letter/"
+    # data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test_unique_only/"
     data_root = "../dataset"
     # data_root = "../dataset_val"
     model_path = "hog_svm.pkl"

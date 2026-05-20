@@ -149,12 +149,14 @@ class AdaptiveAugmentationBuilder:
             SquarePad(fill_white=True),
             # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             transforms.Resize(image_size),
-            # SimpleThinOrThicken(p=0.8, strength='light', is_black_symbol_on_white_background=False),
+            SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
+            
             Invert(),
+            # transforms.Pad(8, fill=0),
             # ExtractLetterWithMargin(margin=4, fill_white=True),
-            transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
+            # transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
             # transforms.RandomResizedCrop(size=image_size, scale=(0.9, 1.1), ratio=(1, 1)),
-            transforms.RandomRotation(degrees=(-15, 15)),
+            # transforms.RandomRotation(degrees=(-10, 10)),
             # AddRandomBlobs(p=0.5, num_blobs=(3, 5), 
             #               blob_size=params['blob_size'], intensity=(250, 255)),
             # AddRandomBlobs(p=0.5, num_blobs=(3, 5),
@@ -164,12 +166,17 @@ class AdaptiveAugmentationBuilder:
             # RandomStrokeWidth(p=0.5, thickness_range=params['stroke_width']),
             # RandomBleed(p=0.5, blur_radius=params['blur_radius']),
             # RandomMissingPart(p=0.3, cut_size=params['cut_size']),
+       
             # transforms.RandomAffine(
             #     degrees=params['degrees'],
             #     translate=params['translate'],
-            #     # shear=params['shear'],
-            #     # scale=(0.7, 1.1)
+            #     shear=params['shear'],
+            #     scale=(0.6, 1)
             # ),
+            # transforms.CenterCrop((image_size)),
+            # DO NOT NEED INVERT FOR HOG
+            # DO NOT NEED INVERT FOR HOG
+            # DO NOT NEED INVERT FOR HOG
             # Invert(),
             
             # TODO: Is it needed?
@@ -182,24 +189,24 @@ class AdaptiveAugmentationBuilder:
             transforms.Normalize(mean=[0.5], std=[0.5])
         ])
     
-    def build_val_transform(self, image_size):
+    # def build_val_transform(self, image_size):
         
-        return transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),
-            ExtractLetterWithMargin(margin=4, fill_white=False),
-            # Invert(),
-            # CenterDigitsTransform(padding=10, fill_value=255),
-            SquarePad(fill_white=False),
-            transforms.Resize(image_size),
-            # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=False),
-            # Invert(),
-            # transforms.Lambda(lambda x: 255 - np.array(x) if isinstance(x, Image.Image) else 255 - x),
-            # transforms.ToPILImage(),  # back to PIL        
-            transforms.Grayscale(num_output_channels=1),
-            transforms.ToTensor(),
-            # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            transforms.Normalize(mean=[0.5], std=[0.5])
-        ])
+    #     return transforms.Compose([
+    #         transforms.Grayscale(num_output_channels=1),
+    #         ExtractLetterWithMargin(margin=4, fill_white=False),
+    #         # Invert(),
+    #         # CenterDigitsTransform(padding=10, fill_value=255),
+    #         SquarePad(fill_white=False),
+    #         transforms.Resize(image_size),
+    #         # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=False),
+    #         # Invert(),
+    #         # transforms.Lambda(lambda x: 255 - np.array(x) if isinstance(x, Image.Image) else 255 - x),
+    #         # transforms.ToPILImage(),  # back to PIL        
+    #         transforms.Grayscale(num_output_channels=1),
+    #         transforms.ToTensor(),
+    #         # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    #         transforms.Normalize(mean=[0.5], std=[0.5])
+    #     ])
 
 class ExtractLetterWithMargin:
     """Extracts the letter by contour with added margin"""

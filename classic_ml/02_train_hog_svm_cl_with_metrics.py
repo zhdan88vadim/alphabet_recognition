@@ -22,9 +22,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score
 import pandas as pd
 from datetime import datetime
+import argparse
 warnings.filterwarnings('ignore')
 
 DATA_ROOT = "../dataset"
+DATA_VAL_ROOT = "../dataset_val"
 # DATA_ROOT = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test_unique_only/"
 
 
@@ -233,17 +235,81 @@ def load_config(config_path='config.yaml'):
 # 2. DATA LOADING WITH PROPER TRAIN/VAL/TEST SPLIT
 # ============================================
 
-def create_train_val_test_datasets(data_root, test_size=0.15, val_size=0.15):
+
+# def create_train_val_test_datasets(data_root, test_size=0.15, val_size=0.15):
+#     """
+#     Creates train, validation, and test datasets with proper transforms.
+#     """
+#     config = load_config()
+#     aug_builder = AdaptiveAugmentationBuilder(base_size=config['data']['image_size'])
+    
+#     train_transform = aug_builder.build_train_transform(
+#         (config['data']['image_size'], config['data']['image_size'])
+#     )
+    
+#     val_test_transform = transforms.Compose([
+#         transforms.Grayscale(num_output_channels=1),
+#         ExtractLetterWithMargin(margin=4, fill_white=True),
+#         SquarePad(fill_white=True),
+#         transforms.Resize((config['data']['image_size'], config['data']['image_size'])),
+#         Invert(),
+#         transforms.Grayscale(num_output_channels=1),
+#         transforms.ToTensor(),
+#         transforms.Normalize(mean=[0.5], std=[0.5])
+#     ])
+    
+#     full_dataset_train = datasets.ImageFolder(root=data_root, transform=train_transform)
+#     full_dataset_val_test = datasets.ImageFolder(root=data_root, transform=val_test_transform)
+    
+#     class_names = full_dataset_train.classes
+    
+#     from collections import defaultdict
+#     class_indices = defaultdict(list)
+#     for idx, (_, label) in enumerate(full_dataset_train):
+#         class_indices[label].append(idx)
+    
+#     train_indices = []
+#     val_indices = []
+#     test_indices = []
+    
+#     for label, idx_list in class_indices.items():
+#         n_class = len(idx_list)
+#         n_test = int(n_class * test_size)
+#         n_val = int(n_class * val_size)
+#         n_train = n_class - n_test - n_val
+        
+#         np.random.seed(42)
+#         shuffled = np.random.permutation(idx_list)
+        
+#         train_indices.extend(shuffled[:n_train])
+#         val_indices.extend(shuffled[n_train:n_train+n_val])
+#         test_indices.extend(shuffled[n_train+n_val:])
+    
+#     train_dataset = torch.utils.data.Subset(full_dataset_train, train_indices)
+#     val_dataset = torch.utils.data.Subset(full_dataset_val_test, val_indices)
+#     test_dataset = torch.utils.data.Subset(full_dataset_val_test, test_indices)
+    
+#     train_images, train_labels = dataset_to_numpy(train_dataset)
+#     val_images, val_labels = dataset_to_numpy(val_dataset)
+#     test_images, test_labels = dataset_to_numpy(test_dataset)
+    
+#     return train_images, train_labels, val_images, val_labels, test_images, test_labels, class_names
+
+
+def create_train_val_test_datasets(train_root, val_root, test_root):
     """
-    Creates train, validation, and test datasets with proper transforms.
+    Creates train, validation, and test datasets from separate folders.
+    No splitting needed - each dataset is already separate.
     """
     config = load_config()
     aug_builder = AdaptiveAugmentationBuilder(base_size=config['data']['image_size'])
     
+    # Transform for training (with augmentation)
     train_transform = aug_builder.build_train_transform(
         (config['data']['image_size'], config['data']['image_size'])
     )
     
+    # Transform for validation and test (without augmentation)
     val_test_transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
         ExtractLetterWithMargin(margin=4, fill_white=True),
@@ -255,40 +321,40 @@ def create_train_val_test_datasets(data_root, test_size=0.15, val_size=0.15):
         transforms.Normalize(mean=[0.5], std=[0.5])
     ])
     
-    full_dataset_train = datasets.ImageFolder(root=data_root, transform=train_transform)
-    full_dataset_val_test = datasets.ImageFolder(root=data_root, transform=val_test_transform)
+    # Загружаем ТРИ РАЗНЫХ датасета из ТРЕХ РАЗНЫХ папок
+    print(f"📂 Loading train data from: {train_root}")
+    train_dataset = datasets.ImageFolder(root=train_root, transform=train_transform)
     
-    class_names = full_dataset_train.classes
+    print(f"📂 Loading validation data from: {val_root}")
+    val_dataset = datasets.ImageFolder(root=val_root, transform=val_test_transform)
     
-    from collections import defaultdict
-    class_indices = defaultdict(list)
-    for idx, (_, label) in enumerate(full_dataset_train):
-        class_indices[label].append(idx)
+    print(f"📂 Loading test data from: {test_root}")
+    test_dataset = datasets.ImageFolder(root=test_root, transform=val_test_transform)
     
-    train_indices = []
-    val_indices = []
-    test_indices = []
+    # Проверяем, что классы совпадают
+    train_classes = set(train_dataset.classes)
+    val_classes = set(val_dataset.classes)
+    test_classes = set(test_dataset.classes)
     
-    for label, idx_list in class_indices.items():
-        n_class = len(idx_list)
-        n_test = int(n_class * test_size)
-        n_val = int(n_class * val_size)
-        n_train = n_class - n_test - n_val
-        
-        np.random.seed(42)
-        shuffled = np.random.permutation(idx_list)
-        
-        train_indices.extend(shuffled[:n_train])
-        val_indices.extend(shuffled[n_train:n_train+n_val])
-        test_indices.extend(shuffled[n_train+n_val:])
+    if train_classes != val_classes or train_classes != test_classes:
+        print("⚠️ WARNING: Class names differ between datasets!")
+        print(f"   Train classes: {sorted(train_classes)}")
+        print(f"   Val classes: {sorted(val_classes)}")
+        print(f"   Test classes: {sorted(test_classes)}")
+        print("   Will use train classes as reference")
     
-    train_dataset = torch.utils.data.Subset(full_dataset_train, train_indices)
-    val_dataset = torch.utils.data.Subset(full_dataset_val_test, val_indices)
-    test_dataset = torch.utils.data.Subset(full_dataset_val_test, test_indices)
+    class_names = train_dataset.classes
     
+    # Конвертируем в numpy
     train_images, train_labels = dataset_to_numpy(train_dataset)
     val_images, val_labels = dataset_to_numpy(val_dataset)
     test_images, test_labels = dataset_to_numpy(test_dataset)
+    
+    print(f"\n✅ Dataset sizes:")
+    print(f"   Train: {len(train_images)} images")
+    print(f"   Validation: {len(val_images)} images")
+    print(f"   Test: {len(test_images)} images")
+    print(f"   Classes: {len(class_names)}")
     
     return train_images, train_labels, val_images, val_labels, test_images, test_labels, class_names
 
@@ -775,7 +841,16 @@ def save_full_metrics_report(train_accuracy, val_accuracy, test_accuracy,
 # 5. MAIN PIPELINE WITH MLflow
 # ============================================
 
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Train HOG+SVM model with MLflow logging')
+    parser.add_argument('-c', '--comment', type=str, default='', 
+                       help='Comment to add to MLflow run description')
+    return parser.parse_args()
+
 def main():
+    args = parse_args()
+
     # Настройка MLflow
     experiment_id = setup_mlflow("hog_svm_alphabet_recognition")
     
@@ -786,9 +861,12 @@ def main():
         
         # Загружаем данные
         train_images, train_labels, val_images, val_labels, test_images, test_labels, class_names = create_train_val_test_datasets(
-            DATA_ROOT, test_size=0.15, val_size=0.15
+            DATA_ROOT, DATA_VAL_ROOT, DATA_VAL_ROOT
         )
-        
+        if args.comment:
+            mlflow.log_params({"mlflow.note.content": args.comment})
+            print(f"📝 Comment: {args.comment}")
+
         # Логируем размеры датасета
         mlflow.log_metric("train_samples", len(train_images))
         mlflow.log_metric("val_samples", len(val_images))
@@ -803,7 +881,7 @@ def main():
             'block_stride': (8, 8),
             'nbins': 9
         }
-        log_model_params(hog_params, 100, {'kernel': 'rbf', 'C': 10, 'gamma': 0.001}, 64, True)
+        log_model_params(hog_params, 50, {'kernel': 'rbf', 'C': 10, 'gamma': 0.001}, 64, True)
 
         print("\n📸 Visualizing sample images...")
         visualize_sample_images(train_images, train_labels, class_names, 
@@ -836,7 +914,7 @@ def main():
         pipeline = train_hog_svm(
             X_train, train_labels, 
             use_pca=True, 
-            pca_components=100
+            pca_components=50
         )
         
         # Логируем модель в MLflow
