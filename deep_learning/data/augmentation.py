@@ -144,17 +144,17 @@ class AdaptiveAugmentationBuilder:
 
         return transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
-            ExtractLetterWithMargin(margin=2, fill_white=True),
+            ExtractLetterWithMargin(margin=4, fill_white=True),
             # CenterDigitsTransform(padding=10, fill_value=255),
             SquarePad(fill_white=True),
             # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             transforms.Resize(image_size),
-            SimpleThinOrThicken(p=0.8, strength='light', is_black_symbol_on_white_background=True),
+            SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             # Invert(),
-            # ExtractLetterWithMargin(margin=2, fill_white=True),
+            # ExtractLetterWithMargin(margin=4, fill_white=True),
             transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
             # transforms.RandomResizedCrop(size=image_size, scale=(0.9, 1.1), ratio=(1, 1)),
-            transforms.RandomRotation(degrees=(-15, 15)),
+            transforms.RandomRotation(degrees=(-10, 10)),
             # AddRandomBlobs(p=0.5, num_blobs=(3, 5), 
             #               blob_size=params['blob_size'], intensity=(250, 255)),
             # AddRandomBlobs(p=0.5, num_blobs=(3, 5),
@@ -164,12 +164,12 @@ class AdaptiveAugmentationBuilder:
             # RandomStrokeWidth(p=0.5, thickness_range=params['stroke_width']),
             # RandomBleed(p=0.5, blur_radius=params['blur_radius']),
             # RandomMissingPart(p=0.3, cut_size=params['cut_size']),
-            # transforms.RandomAffine(
-            #     degrees=params['degrees'],
-            #     translate=params['translate'],
-            #     # shear=params['shear'],
-            #     # scale=(0.7, 1.1)
-            # ),
+            transforms.RandomAffine(
+                degrees=params['degrees'],
+                translate=params['translate'],
+                shear=params['shear'],
+                scale=(0.6, 1)
+            ),
             # Invert(),
             
             # TODO: Is it needed?
@@ -186,12 +186,12 @@ class AdaptiveAugmentationBuilder:
         
         return transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
-            ExtractLetterWithMargin(margin=10, fill_white=True),
+            ExtractLetterWithMargin(margin=4, fill_white=True),
             # Invert(),
             # CenterDigitsTransform(padding=10, fill_value=255),
             SquarePad(fill_white=True),
             transforms.Resize(image_size),
-            SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
+            # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             # Invert(),
             # transforms.Lambda(lambda x: 255 - np.array(x) if isinstance(x, Image.Image) else 255 - x),
             # transforms.ToPILImage(),  # back to PIL        

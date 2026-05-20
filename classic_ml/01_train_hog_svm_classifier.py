@@ -214,7 +214,7 @@ def create_train_val_test_datasets(data_root, test_size=0.15, val_size=0.15):
     # Transform for validation and test (without augmentation)
     val_test_transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
-        ExtractLetterWithMargin(margin=2, fill_white=True),
+        ExtractLetterWithMargin(margin=4, fill_white=True),
         # CenterDigitsTransform(padding=2, fill_value=255),
         SquarePad(fill_white=True),
         transforms.Resize((config['data']['image_size'], config['data']['image_size'])),
@@ -810,7 +810,7 @@ def predict_single_image(image_path, model_artifacts):
     
     # Load and preprocess image using SAME transforms as validation/test
     transform = transforms.Compose([
-        ExtractLetterWithMargin(margin=2, fill_white=True),
+        ExtractLetterWithMargin(margin=4, fill_white=True),
         transforms.Resize((64, 64)),
         transforms.Grayscale(num_output_channels=1),
         transforms.ToTensor(),

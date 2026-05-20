@@ -97,7 +97,7 @@ def load_cnn_model(model_path, mapping_path, device):
 
 def get_cnn_transform():
     return transforms.Compose([
-        ExtractLetterWithMargin(margin=2, fill_white=True),
+        ExtractLetterWithMargin(margin=4, fill_white=True),
         # Invert(),
         CenterDigitsTransform(padding=2, fill_value=0),
         SquarePad(fill_white=False),

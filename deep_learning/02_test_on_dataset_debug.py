@@ -32,7 +32,7 @@ class DatasetTester:
         }
 
         self.transform = transforms.Compose([
-            ExtractLetterWithMargin(margin=2, fill_white=True),
+            ExtractLetterWithMargin(margin=4, fill_white=True),
             transforms.Resize((64, 64)),
             Invert(),     
             transforms.RandomRotation(10),       

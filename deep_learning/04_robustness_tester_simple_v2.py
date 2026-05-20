@@ -91,7 +91,7 @@ def load_cnn_model(model_path, mapping_path, device):
 def get_cnn_transform():
     return transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
-        ExtractLetterWithMargin(margin=2, fill_white=True),
+        ExtractLetterWithMargin(margin=4, fill_white=True),
         SquarePad(fill_white=True),
         transforms.Resize((64, 64)),
         SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
@@ -360,6 +360,8 @@ def main():
     # data_root = "/media/vadim/1TB_SSD/my_github/alphabet_recognition/dataset/"
     # data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/classified_by_letter/"
     data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test_unique_only/"
+    
+    # data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/classified_by_letter/"
     
     model_path = "best_alphabet_model.pth"
     mapping_path = "class_mapping.json"

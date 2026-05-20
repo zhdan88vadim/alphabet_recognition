@@ -3,7 +3,7 @@ from inference.predictor import AlphabetPredictor
 
 def main():
     model_path = "best_alphabet_model.pth"
-    mapping_path = "class_mapping.json"
+    mapping_path = "TODO_REMOVE_THIS"
     
     predictor = AlphabetPredictor(model_path, mapping_path)
     

@@ -20,7 +20,6 @@ from augmentation import CenterDigitsTransform, ExtractLetterWithMargin, Invert,
 # ============================================
 
 def apply_rotation(image, angle, color):
-    print(f"DEBUG: color = {color}, type = {type(color)}")
     h, w = image.shape
     center = (w // 2, h // 2)
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
@@ -28,7 +27,6 @@ def apply_rotation(image, angle, color):
     return rotated
 
 def apply_translation(image, dx, dy, color):
-    print(f"DEBUG: color = {color}, type = {type(color)}")
     h, w = image.shape
     M = np.float32([[1, 0, dx], [0, 1, dy]])
     translated = cv2.warpAffine(image, M, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=color)
@@ -63,7 +61,7 @@ def load_test_data(data_root):
     # Same transform as validation/test in training
     transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
-        ExtractLetterWithMargin(margin=2, fill_white=True),
+        ExtractLetterWithMargin(margin=4, fill_white=True),
         SquarePad(fill_white=True),
         transforms.Resize((64, 64)),
         Invert(),
@@ -314,6 +312,8 @@ def show_svm_confusion_matrix(pipeline, hog, X_test, y_test, class_names):
 def main():
     # Paths
     data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/classified_by_letter/"
+    data_root = "../dataset"
+    # data_root = "../dataset_val"
     model_path = "hog_svm.pkl"
     
     # Load model
@@ -353,10 +353,10 @@ def main():
     show_svm_distorted_predictions(pipeline, hog, X_test, y_test, class_names, n_samples=15)
     
     print("\n2. Misclassifications...")
-    # show_svm_misclassified(pipeline, hog, X_test, y_test, class_names, n_samples=40)
+    show_svm_misclassified(pipeline, hog, X_test, y_test, class_names, n_samples=40)
     
     print("\n3. Confusion matrix...")
-    # show_svm_confusion_matrix(pipeline, hog, X_test, y_test, class_names)
+    show_svm_confusion_matrix(pipeline, hog, X_test, y_test, class_names)
     
     print("\n" + "="*60)
     print("✅ Done!")

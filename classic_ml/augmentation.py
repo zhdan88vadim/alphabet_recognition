@@ -144,14 +144,14 @@ class AdaptiveAugmentationBuilder:
 
         return transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
-            ExtractLetterWithMargin(margin=2, fill_white=True),
+            ExtractLetterWithMargin(margin=4, fill_white=True),
             # CenterDigitsTransform(padding=10, fill_value=255),
             SquarePad(fill_white=True),
             # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             transforms.Resize(image_size),
             # SimpleThinOrThicken(p=0.8, strength='light', is_black_symbol_on_white_background=False),
             Invert(),
-            # ExtractLetterWithMargin(margin=2, fill_white=True),
+            # ExtractLetterWithMargin(margin=4, fill_white=True),
             transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
             # transforms.RandomResizedCrop(size=image_size, scale=(0.9, 1.1), ratio=(1, 1)),
             transforms.RandomRotation(degrees=(-15, 15)),
@@ -186,7 +186,7 @@ class AdaptiveAugmentationBuilder:
         
         return transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
-            ExtractLetterWithMargin(margin=10, fill_white=False),
+            ExtractLetterWithMargin(margin=4, fill_white=False),
             # Invert(),
             # CenterDigitsTransform(padding=10, fill_value=255),
             SquarePad(fill_white=False),

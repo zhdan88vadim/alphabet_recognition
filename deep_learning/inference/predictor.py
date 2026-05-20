@@ -12,6 +12,7 @@ from datetime import datetime
 import os
 from PIL import Image
 from models.model import AlphabetRecognizer
+import uuid
 
 class AlphabetPredictor:   
     def __init__(self, model_path, mapping_path, device='cuda'):
@@ -19,7 +20,7 @@ class AlphabetPredictor:
         self.model, self.class_names = self._load_model(model_path, mapping_path)
 
         self.transform = transforms.Compose([
-            ExtractLetterWithMargin(margin=10, fill_white=True),
+            ExtractLetterWithMargin(margin=4, fill_white=True),
             SquarePad(fill_white=True),
             transforms.Resize((64, 64)),
             transforms.Grayscale(num_output_channels=1),
@@ -55,8 +56,6 @@ class AlphabetPredictor:
         img_for_save = img_tensor.squeeze(0).squeeze(0).cpu().numpy()
         img_for_save = (img_for_save - img_for_save.min()) / (img_for_save.max() - img_for_save.min())
         
-        plt.imsave(f"{self.debug_dir}/letter_to_model_{index}.png", img_for_save, cmap='gray')
-
         with torch.no_grad():
             outputs = self.model(img_tensor)
             probs = torch.softmax(outputs, dim=1)
@@ -68,7 +67,12 @@ class AlphabetPredictor:
                 return top5
             
             confidence, predicted = torch.max(probs, 1)
-            return self.class_names[predicted.item()], confidence.item() * 100, img_for_save
+            class_name = self.class_names[predicted.item()]
+
+            unique_id = uuid.uuid4().hex  # Генерирует 32-символьный хеш
+            plt.imsave(f"{self.debug_dir}/letter_to_model_{class_name}__{unique_id}.png", img_for_save, cmap='gray')
+
+            return class_name, confidence.item() * 100, img_for_save
     
     def recognize_image(self, image_path, display):
         """Recognizes all letters in an image"""

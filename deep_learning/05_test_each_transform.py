@@ -34,7 +34,7 @@ params = {
 
 transforms_list = [
     ("0. Grayscale", transforms.Grayscale(num_output_channels=1)),
-    ("1. ExtractLetterWithMargin", ExtractLetterWithMargin(margin=2, fill_white=True)),
+    ("1. ExtractLetterWithMargin", ExtractLetterWithMargin(margin=4, fill_white=True)),
     ("2. CenterDigitsTransform", CenterDigitsTransform(padding=2, fill_value=255)),
     ("3. SquarePad", SquarePad(fill_white=True)),
     ("4. SimpleThinOrThicken", SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True)),
@@ -53,7 +53,7 @@ transforms_list = [
 
 # transforms_list = [
 #      ("0. Grayscale", transforms.Grayscale(num_output_channels=1)),
-#     ("1. ExtractLetterWithMargin", ExtractLetterWithMargin(margin=2, fill_white=True)),
+#     ("1. ExtractLetterWithMargin", ExtractLetterWithMargin(margin=4, fill_white=True)),
 #     ("2. CenterDigitsTransform", CenterDigitsTransform(padding=2, fill_value=255)),
 #     ("3. SquarePad", SquarePad(fill_white=True)),
 #     ("4. SimpleThinOrThicken", SimpleThinOrThicken(p=1, strength='light', min_thickness=1)),

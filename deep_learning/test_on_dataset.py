@@ -19,7 +19,7 @@ class DatasetTester:
         self.model, self.class_names = self._load_model(model_path, mapping_path)
         
         self.transform = transforms.Compose([
-            ExtractLetterWithMargin(margin=2, fill_white=True),
+            ExtractLetterWithMargin(margin=4, fill_white=True),
             transforms.Resize((64, 64)),
             Invert(),
             SimpleThinOrThicken(p=1, strength='light', min_thickness=1),
