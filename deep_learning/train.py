@@ -1,5 +1,5 @@
 from models.model import AlphabetRecognizer
-from tensorboard_utils.visualizer import log_transformed_images
+from tensorboard_utils.visualizer import log_transformed_images, log_transformed_images_from_dataloader
 import torch
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
@@ -36,44 +36,108 @@ def main():
     )
 
     print("📂 Loading dataset...")
-    full_dataset = datasets.ImageFolder(
+
+
+
+    # full_dataset = datasets.ImageFolder(
+    #     root=config['data']['train_root'], 
+    #     transform=train_transform
+    # )
+    
+    # class_names = full_dataset.classes
+    # num_classes = len(class_names)
+    # print(f"📚 Found classes: {num_classes}")
+    # print(f"   {class_names}")
+    
+    # # Count number of images per class
+    # class_counts = {}
+    # for idx, (_, label) in enumerate(full_dataset.samples):
+    #     class_name = class_names[label]
+    #     class_counts[class_name] = class_counts.get(class_name, 0) + 1
+    
+    # print(f"\n📊 Class distribution:")
+    # for name, count in sorted(class_counts.items()):
+    #     print(f"   {name}: {count} images")
+    
+
+    # train_size = int(0.8 * len(full_dataset))
+    # val_size = len(full_dataset) - train_size
+    # train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+    
+    # print(f"Train size: {len(train_dataset)}")
+    # print(f"Val size: {len(val_dataset)}")
+
+    # log_transformed_images(writer, train_dataset, num_samples=128, tag="train_augmented")
+
+    # # Changing the transformation for validation
+    # val_dataset.dataset.transform = val_transform
+    
+    # print(f"\n Train samples: {len(train_dataset)}")
+    # print(f"Val samples: {len(val_dataset)}")
+    
+    # train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True, num_workers=config['data']['num_workers'], pin_memory=True)
+    # val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'], shuffle=False, num_workers=config['data']['num_workers'], pin_memory=True)
+
+
+    train_dataset = datasets.ImageFolder(
         root=config['data']['train_root'], 
         transform=train_transform
     )
     
-    class_names = full_dataset.classes
+    val_dataset = datasets.ImageFolder(
+        root=config['data']['val_root'],
+        transform=val_transform
+    )
+    
+    class_names = train_dataset.classes  # Берем классы из train
     num_classes = len(class_names)
     print(f"📚 Found classes: {num_classes}")
     print(f"   {class_names}")
     
-    # Count number of images per class
-    class_counts = {}
-    for idx, (_, label) in enumerate(full_dataset.samples):
-        class_name = class_names[label]
-        class_counts[class_name] = class_counts.get(class_name, 0) + 1
-    
-    print(f"\n📊 Class distribution:")
-    for name, count in sorted(class_counts.items()):
-        print(f"   {name}: {count} images")
-    
-
-    train_size = int(0.8 * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-    
-    print(f"Train size: {len(train_dataset)}")
-    print(f"Val size: {len(val_dataset)}")
-
-    log_transformed_images(writer, train_dataset, num_samples=128, tag="train_augmented")
-
-    # Changing the transformation for validation
-    val_dataset.dataset.transform = val_transform
-    
-    print(f"\n Train samples: {len(train_dataset)}")
+    # Проверка, что классы совпадают в train и val
+    if set(train_dataset.classes) != set(val_dataset.classes):
+        print("⚠️ WARNING: Train and Val datasets have different classes!")
+        print(f"Train classes: {set(train_dataset.classes)}")
+        print(f"Val classes: {set(val_dataset.classes)}")
+        
+    print(f"Train samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
     
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True, num_workers=config['data']['num_workers'], pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'], shuffle=False, num_workers=config['data']['num_workers'], pin_memory=True)
+    # Логируем распределение классов
+    print(f"\n📊 Train class distribution:")
+    for class_name in class_names:
+        count = sum(1 for _, label in train_dataset.samples if train_dataset.classes[label] == class_name)
+        print(f"   {class_name}: {count} images")
+    
+    print(f"\n📊 Val class distribution:")
+    for class_name in class_names:
+        count = sum(1 for _, label in val_dataset.samples if val_dataset.classes[label] == class_name)
+        print(f"   {class_name}: {count} images")
+    
+    # log_transformed_images(writer, train_dataset, num_samples=128, tag="train_augmented")
+    # log_transformed_images(writer, val_dataset, num_samples=64, tag="val_original")
+
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=config['training']['batch_size'], 
+        shuffle=True, 
+        num_workers=config['data']['num_workers'], 
+        pin_memory=True
+    )
+    
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=config['training']['batch_size'], 
+        shuffle=False, 
+        num_workers=config['data']['num_workers'], 
+        pin_memory=True
+    )
+
+
+    log_transformed_images_from_dataloader(writer, train_loader, num_samples=128, tag="train_augmented")
+
+    log_transformed_images_from_dataloader(writer, val_loader, num_samples=128, tag="val_original")
+
 
     model = AlphabetRecognizer()
     model.to(device)
