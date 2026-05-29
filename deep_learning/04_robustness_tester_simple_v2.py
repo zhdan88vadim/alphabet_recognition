@@ -245,7 +245,7 @@ def show_distorted_predictions(model, transform, device, X_test, y_test, class_n
     
     plt.suptitle("CNN recognition with distortions + model input for original", fontsize=12, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('../readme_images/cnn_distorted_predictions.png', dpi=300, bbox_inches='tight')
+    plt.savefig('../readme_images/validation_cnn_distorted_predictions.png', dpi=300, bbox_inches='tight')
     plt.show()
     print("✅ Saved: cnn_distorted_predictions.png")
 
@@ -297,7 +297,7 @@ def show_misclassified(model, transform, device, X_test, y_test, class_names, n_
     
     plt.suptitle(f"CNN misclassifications (total: {len(mis_idx)})", fontsize=14)
     plt.tight_layout()
-    plt.savefig('cnn_misclassified.png', dpi=150, bbox_inches='tight')
+    plt.savefig('../readme_images/validation_cnn_misclassified.png', dpi=150, bbox_inches='tight')
     plt.show()
     print("✅ Saved: cnn_misclassified.png")
     
@@ -341,9 +341,9 @@ def show_confusion_matrix(model, transform, device, X_test, y_test, class_names,
     plt.ylabel('True class')
     plt.title('CNN Confusion Matrix', fontsize=14, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('cnn_confusion_matrix.png', dpi=150)
+    plt.savefig('../readme_images/validation_cnn_confusion_matrix.png', dpi=150)
     plt.show()
-    print("✅ Saved: cnn_confusion_matrix.png")
+    print("✅ Saved: validation_cnn_confusion_matrix.png")
     
     print("\n📊 Per-class statistics:")
     for i, name in enumerate(class_names):

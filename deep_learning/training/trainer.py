@@ -492,13 +492,13 @@ class ModelTrainer:
         ax.axhline(y=0.7, color='orange', linestyle='--', label='Warning Threshold (0.7)')
         
         plt.tight_layout()
-        plt.savefig('per_letter_metrics.png')
+        plt.savefig('../readme_images/metrics/val/per_letter_metrics.png')
         mlflow.log_figure(fig, 'per_letter_metrics.png')
         plt.close()
         
         # Сохраняем CSV с метриками для Excel/Tableau
-        df.to_csv('per_letter_metrics.csv', index=False)
-        mlflow.log_artifact('per_letter_metrics.csv')
+        # df.to_csv('per_letter_metrics.csv', index=False)
+        # mlflow.log_artifact('per_letter_metrics.csv')
     
     def _save_checkpoint(self, epoch, val_acc, val_f1, class_names):
         torch.save({

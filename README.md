@@ -110,6 +110,9 @@ This approach showed **quite good results**:
 ![Examples of letters from the dataset](readme_images/eda_visualize_samples_per_class.png)
 
 
+### Data Augmentation Examples
+<img src="readme_images/tb_aug_images.png" width="50%">
+<!-- ![Augmented Samples](readme_images/tb_aug_images.png) -->
 
 
 
@@ -126,9 +129,10 @@ This approach showed **quite good results**:
 - **Best Validation Accuracy**: 98.42%
 - **Test Accuracy**: ---%
 
-### Data Augmentation Examples
-<img src="readme_images/tb_aug_images.png" width="50%">
-<!-- ![Augmented Samples](readme_images/tb_aug_images.png) -->
+
+### Train Confusion matrix
+![Confusion matrix](readme_images/confusion_matrix.png)
+
 
 ## 🔍 Recognition Examples
 
@@ -172,16 +176,61 @@ Testing the CNN model's resistance to image distortions.
 | **Scaling** | 0.5× to 1.2× | Size variation |
 
 
-![Example 1](readme_images/cnn_distorted_predictions.png)
+![Example predictions](readme_images/validation_cnn_distorted_predictions.png)
+*Figure 1: Example predictions on distorted validation images showing model performance on augmented data*
+
+![Confusion matrix](readme_images/validation_cnn_confusion_matrix.png)
+*Figure 2: Confusion matrix showing classification errors between letter classes*
+
+![Misclassified examples](readme_images/validation_cnn_misclassified.png)
+*Figure 3: Examples of misclassified letters with predicted vs actual labels*
 
 
-<!-- 
-![Example 2](readme_images/result_original_and_predict.png) 
--->
+## Validation Classification Report
+
+| Letter | precision | recall | f1-score | support |
+|--------|-----------|--------|----------|---------|
+| Ё | 0.86 | 0.86 | 0.86 | 21 |
+| А | 0.87 | 0.81 | 0.84 | 32 |
+| Б | 0.84 | 1.00 | 0.91 | 16 |
+| В | 1.00 | 1.00 | 1.00 | 15 |
+| Г | 0.87 | 0.87 | 0.87 | 15 |
+| Д | 0.92 | 1.00 | 0.96 | 12 |
+| Е | 0.85 | 0.85 | 0.85 | 20 |
+| Ж | 0.71 | 1.00 | 0.83 | 10 |
+| З | 1.00 | 1.00 | 1.00 | 15 |
+| И | 0.72 | 0.59 | 0.65 | 22 |
+| Й | 0.92 | 0.60 | 0.73 | 20 |
+| К | 1.00 | 1.00 | 1.00 | 15 |
+| Л | 0.96 | 0.75 | 0.84 | 32 |
+| М | 0.79 | 0.96 | 0.86 | 23 |
+| Н | 1.00 | 0.62 | 0.77 | 16 |
+| О | 0.84 | 1.00 | 0.91 | 16 |
+| П | 0.58 | 1.00 | 0.74 | 7 |
+| Р | 1.00 | 1.00 | 1.00 | 7 |
+| С | 1.00 | 1.00 | 1.00 | 15 |
+| Т | 1.00 | 0.93 | 0.96 | 14 |
+| У | 0.88 | 1.00 | 0.93 | 7 |
+| Ф | 1.00 | 1.00 | 1.00 | 8 |
+| Х | 0.89 | 1.00 | 0.94 | 8 |
+| Ц | 1.00 | 1.00 | 1.00 | 7 |
+| Ч | 0.25 | 0.50 | 0.33 | 2 |
+| Ш | 0.88 | 1.00 | 0.93 | 7 |
+| Щ | 1.00 | 1.00 | 1.00 | 6 |
+| Ъ | 1.00 | 1.00 | 1.00 | 11 |
+| Ы | 0.92 | 0.85 | 0.88 | 13 |
+| Ь | 0.93 | 0.87 | 0.90 | 31 |
+| Э | 1.00 | 1.00 | 1.00 | 18 |
+| Ю | 0.50 | 1.00 | 0.67 | 4 |
+| Я | 1.00 | 1.00 | 1.00 | 12 |
+| **accuracy** | | | **0.89** | **477** |
+| **macro avg** | **0.88** | **0.91** | **0.88** | **477** |
+| **weighted avg** | **0.90** | **0.89** | **0.89** | **477** |
 
 
-## Confusion matrix
-![Confusion matrix](readme_images/confusion_matrix.png)
+<br>  
+
+![Validation metrics](readme_images/metrics/val/per_letter_metrics.png)
 
 
 ## Reproduce Results
