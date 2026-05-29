@@ -13,3 +13,5 @@ deep_learning/mlruns/
 deep_learning/mlflow.db
 dataset_val/
 classic_ml/mlruns/
+dataset_merge/
+emnist_data/

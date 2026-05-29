@@ -119,6 +119,7 @@ class ModelTrainer:
         loop = tqdm(train_loader, desc="Training")
         for inputs, labels in loop:
             inputs, labels = inputs.to(self.device), labels.to(self.device)
+            labels = labels - 1 
             
             self.optimizer.zero_grad()
             outputs = self.model(inputs)
@@ -169,6 +170,8 @@ class ModelTrainer:
         with torch.no_grad():
             for inputs, labels in val_loader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
+                labels = labels - 1 
+
                 outputs = self.model(inputs)
                 loss = self.criterion(outputs, labels)
                 
@@ -204,6 +207,8 @@ class ModelTrainer:
         with torch.no_grad():
             for inputs, labels in val_loader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
+                labels = labels - 1 
+
                 outputs = self.model(inputs)
                 _, predicted = torch.max(outputs, 1)
                 all_preds.extend(predicted.cpu().numpy())
@@ -327,16 +332,16 @@ class ModelTrainer:
                             self.log_confusion_matrix(val_loader, class_names, epoch + 1)
                         
                         # Сохраняем модель в MLflow
-                        model_name = f"alphabet_model_f1_{self.best_f1:.4f}_acc_{self.best_acc:.2f}".replace('.', '_')
+                        # model_name = f"alphabet_model_f1_{self.best_f1:.4f}_acc_{self.best_acc:.2f}".replace('.', '_')
                         
-                        # Сохраняем модель
-                        mlflow.pytorch.log_model(
-                            pytorch_model=self.model,
-                            artifact_path="best_model",
-                            registered_model_name=model_name,
-                            serialization_format='pickle',
-                            pip_requirements=["torch>=2.0.0", "torchvision>=0.15.0", "scikit-learn>=1.0.0"]
-                        )
+                        # # Сохраняем модель
+                        # mlflow.pytorch.log_model(
+                        #     pytorch_model=self.model,
+                        #     artifact_path="best_model",
+                        #     registered_model_name=model_name,
+                        #     serialization_format='pickle',
+                        #     pip_requirements=["torch>=2.0.0", "torchvision>=0.15.0", "scikit-learn>=1.0.0"]
+                        # )
                 
                 # Early stopping (теперь на основе F1 вместо accuracy)
                 if early_stopping(val_f1):
@@ -445,6 +450,8 @@ class ModelTrainer:
         with torch.no_grad():
             for inputs, labels in val_loader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
+                labels = labels - 1 
+
                 outputs = self.model(inputs)
                 _, predicted = torch.max(outputs, 1)
                 all_preds.extend(predicted.cpu().numpy())

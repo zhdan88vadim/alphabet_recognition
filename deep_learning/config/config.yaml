@@ -1,7 +1,7 @@
 data:
   train_root: "../dataset/"
   val_root: "../dataset_val/"
-  image_size: 64
+  image_size: 28
   train_split: 0.8
   num_workers: 4
   
@@ -12,7 +12,7 @@ model:
   
 training:
   batch_size: 64
-  epochs: 20
+  epochs: 10
   learning_rate: 0.0005
   weight_decay: 0.02
   scheduler_patience: 2
