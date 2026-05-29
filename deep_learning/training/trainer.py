@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import mlflow
 import mlflow.pytorch
+from datetime import datetime
 from sklearn.metrics import f1_score, precision_score, recall_score, classification_report
 
 class ModelTrainer:
@@ -55,6 +56,68 @@ class ModelTrainer:
         # Инициализация MLflow
         if self.use_mlflow:
             self._setup_mlflow()
+
+    def train_with_gradual_unfreezing(self, train_loader, val_loader, class_names, early_stopping):
+        """Обучение с постепенной разморозкой слоев"""
+        epochs = self.config['training']['epochs']
+        
+        # Определяем когда размораживать слои
+        total_epochs = epochs
+        unfreeze_schedule = [
+            (int(total_epochs * 0.6), 0),  # Разморозить stage 0 на 60% эпох
+            (int(total_epochs * 0.75), 1), # Разморозить stage 1 на 75% эпох
+            (int(total_epochs * 0.85), 2), # Разморозить stage 2 на 85% эпох
+            (int(total_epochs * 0.95), 3), # Разморозить stage 3 на 95% эпох
+        ]
+        
+        current_unfreeze_level = -1
+        
+        for epoch in range(epochs):
+            # Проверяем нужно ли разморозить следующий stage
+            for unfreeze_epoch, stage_idx in unfreeze_schedule:
+                if epoch >= unfreeze_epoch and stage_idx > current_unfreeze_level:
+                    if hasattr(self.model, 'unfreeze_stage'):
+                        self.model.unfreeze_stage(stage_idx)
+                        current_unfreeze_level = stage_idx
+                        
+                        # После разморозки обновляем optimizer (теперь с новыми параметрами)
+                        self.optimizer = optim.AdamW(
+                            filter(lambda p: p.requires_grad, self.model.parameters()),
+                            lr=self.config['training']['learning_rate'] * (0.5 if stage_idx > 0 else 1.0),
+                            weight_decay=self.config['training']['weight_decay']
+                        )
+                        
+                        # Сбрасываем scheduler или обновляем
+                        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                            self.optimizer, mode='max', factor=0.5,
+                            patience=self.config['training']['scheduler_patience']
+                        )
+                        
+                        print(f"\n🔄 Unfroze stage {stage_idx}, optimizer updated")
+            
+            # Обычная тренировка эпохи
+            train_loss, train_acc, train_f1, train_precision, train_recall = self.train_epoch(train_loader)
+            val_loss, val_acc, val_f1, val_precision, val_recall = self.validate(val_loader)
+            
+            # ... (остальной код как в train методе)
+    
+    def set_different_lrs(self, backbone_lr=1e-5, classifier_lr=1e-3):
+        """Установка разных learning rates для backbone и классификатора"""
+        backbone_params = []
+        classifier_params = []
+        
+        for name, param in self.model.named_parameters():
+            if 'backbone' in name:
+                backbone_params.append(param)
+            else:
+                classifier_params.append(param)
+        
+        self.optimizer = optim.AdamW([
+            {'params': backbone_params, 'lr': backbone_lr},
+            {'params': classifier_params, 'lr': classifier_lr}
+        ], weight_decay=self.config['training']['weight_decay'])
+        
+        print(f"✅ Set different LRs: backbone={backbone_lr}, classifier={classifier_lr}")
 
     def _setup_mlflow(self):
         """Настройка MLflow эксперимента"""
@@ -117,7 +180,7 @@ class ModelTrainer:
         all_labels = []
         
         loop = tqdm(train_loader, desc="Training")
-        for inputs, labels in loop:
+        for inputs, labels in loop:  
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             
             self.optimizer.zero_grad()
@@ -228,7 +291,6 @@ class ModelTrainer:
         plt.savefig(f"../readme_images/confusion_matrix_final.png", dpi=150, bbox_inches='tight')
         plt.close()
         
-        # Логируем classification report
         # if self.use_mlflow and epoch % 5 == 0:  # Логируем каждые 5 эпох
         #     report = classification_report(all_labels, all_preds, target_names=class_names, zero_division=0)
         #     with open(f"classification_report_epoch_{epoch}.txt", "w") as f:
@@ -241,12 +303,17 @@ class ModelTrainer:
         
         print(f"\n Начинаем обучение на {epochs} эпох...")
         
-        # Проверяем, активен ли уже run
         active_run = mlflow.active_run()
         
-        if self.use_mlflow and not active_run:
+        if active_run:
+            print(f"⚠️ Found active MLflow run: {active_run.info.run_id}")
+            print(f"   Ending it to start a fresh one...")
+            mlflow.end_run()
+        
+        if self.use_mlflow:
             # Запускаем новый run только если нет активного
-            run_name = self.config.get('run_name', f"run_{self.best_acc:.2f}")
+            run_name = self.config.get('run_name', f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            print("run_name: ", run_name)
             mlflow.start_run(run_name=run_name)
             print(f"🚀 Started MLflow run: {run_name}")
         elif self.use_mlflow and active_run:

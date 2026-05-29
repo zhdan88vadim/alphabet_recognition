@@ -157,26 +157,68 @@ def main():
         pin_memory=True
     )
 
+    sample, _ = next(iter(train_loader))
+    print(f"Input range: min={sample.min():.2f}, max={sample.max():.2f}, dtype={sample.dtype}")
+    print(f"Unique values: {torch.unique(sample)}")
+
 
     log_transformed_images_from_dataloader(writer, train_loader, num_samples=512, tag="train_augmented")
 
     log_transformed_images_from_dataloader(writer, val_loader, num_samples=512, tag="val_original")
 
 
-    model = AlphabetRecognizer()
-    model.to(device)
+    # Выбираем модель
+    use_pretrained = True
+    model_name = 'efficientnet_b0'  # или 'efficientnet_b0', 'mobilenet_v3_small', 'resnet34' resnet18
     
-    # Calculating parameters
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"\n🧠 Model: AlphabetRecognizer")
-    print(f"   Total parameters: {total_params:,}")
-    print(f"   Trainable parameters: {trainable_params:,}")
+    trainer = None
 
-    trainer = ModelTrainer(model, device, config, writer)
+    if use_pretrained:
+        from models.pretrained_model import AlphabetRecognizerPretrained
+        
+        model = AlphabetRecognizerPretrained(
+            num_classes=num_classes,
+            model_name=model_name,
+            pretrained=True
+        )
+
+        model.to(device)
+        
+        # Вариант 1: Разные learning rates
+        trainer = ModelTrainer(model, device, config, writer)
+        
+        # Устанавливаем разные LR для backbone и классификатора
+        backbone_lr = config['training'].get('backbone_lr', 1e-5)
+        classifier_lr = config['training']['learning_rate']
+
+        print(backbone_lr, classifier_lr)
+
+        trainer.set_different_lrs(backbone_lr, classifier_lr)
+        
+    else:
+        from models.model import AlphabetRecognizer
+        model = AlphabetRecognizer(num_classes=num_classes)
+    
+        model.to(device)
+    
+        # Calculating parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"\n🧠 Model: AlphabetRecognizer")
+        print(f"   Total parameters: {total_params:,}")
+        print(f"   Trainable parameters: {trainable_params:,}")
+
+        trainer = ModelTrainer(model, device, config, writer)
+
+
     early_stopping = EarlyStopping(patience=config['training']['early_stopping_patience'])
     
     trainer.train(train_loader, val_loader, class_names, early_stopping)
+
+    # if hasattr(model, 'unfreeze_stage'):
+    #     trainer.train_with_gradual_unfreezing(train_loader, val_loader, class_names, early_stopping)
+    # else:
+    #     trainer.train(train_loader, val_loader, class_names, early_stopping)
 
 if __name__ == "__main__":
     main()
