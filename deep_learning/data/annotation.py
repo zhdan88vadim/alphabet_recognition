@@ -84,7 +84,7 @@ def _create_letters_composite(image, results):
     
     return letters_composite
 
-def visualize_results(image, results, debug_dir):
+def visualize_results(image, results, debug_dir, display, output_file_name):
     vis_image = _draw_annotations(image.copy(), results)
 
     letters_composite = _create_letters_composite(image.copy(), results)
@@ -105,13 +105,15 @@ def visualize_results(image, results, debug_dir):
     
     # plt.suptitle(f"Recognized text: {''.join([r['letter'] for r in results])}")
     plt.tight_layout()
-    plt.savefig('../readme_images/result_original_and_predict.png', dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.savefig(f'../readme_images/predicted/{output_file_name}', dpi=150, bbox_inches='tight')
 
-    save_path_1 = f"{debug_dir}/1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    save_path_2 = f"{debug_dir}/2_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    save_path_3 = f"{debug_dir}/3_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    if display:
+        plt.show()
 
-    plt.imsave(save_path_1, cv2.cvtColor(composite_with_annotations, cv2.COLOR_BGR2RGB), cmap='gray')
-    plt.savefig(save_path_2, dpi=150, bbox_inches='tight')
-    cv2.imwrite(save_path_3, cv2.cvtColor(composite_with_annotations, cv2.COLOR_BGR2RGB))
+    # save_path_1 = f"{debug_dir}/1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    # save_path_2 = f"{debug_dir}/2_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    # save_path_3 = f"{debug_dir}/3_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+
+    # plt.imsave(save_path_1, cv2.cvtColor(composite_with_annotations, cv2.COLOR_BGR2RGB), cmap='gray')
+    # plt.savefig(save_path_2, dpi=150, bbox_inches='tight')
+    # cv2.imwrite(save_path_3, cv2.cvtColor(composite_with_annotations, cv2.COLOR_BGR2RGB))

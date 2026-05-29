@@ -1,7 +1,7 @@
 
 from data.annotation import visualize_results
 from data.preprocessing import segment_letters
-from data.augmentation import ExtractLetterWithMargin, SquarePad
+from data.augmentation import ExtractLetterWithMargin, Invert, SquarePad
 import torch
 from torchvision import transforms
 from PIL import Image
@@ -20,9 +20,10 @@ class AlphabetPredictor:
         self.model, self.class_names = self._load_model(model_path, mapping_path)
 
         self.transform = transforms.Compose([
-            ExtractLetterWithMargin(margin=4, fill_white=True),
+            ExtractLetterWithMargin(margin=15, fill_white=True),
             SquarePad(fill_white=True),
             transforms.Resize((64, 64)),
+            Invert(),
             transforms.Grayscale(num_output_channels=1),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5], std=[0.5])
@@ -74,7 +75,7 @@ class AlphabetPredictor:
 
             return class_name, confidence.item() * 100, img_for_save
     
-    def recognize_image(self, image_path, display):
+    def recognize_image(self, image_path, display, output_file_name):
         """Recognizes all letters in an image"""
         image = cv2.imread(image_path)
         if image is None:
@@ -101,8 +102,7 @@ class AlphabetPredictor:
                 'img_for_save': img_for_save
             })
         
-        if display:
-            visualize_results(image, results, self.debug_dir)
+        visualize_results(image, results, self.debug_dir, display, output_file_name)
         
         return results
     

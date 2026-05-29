@@ -132,12 +132,31 @@ This approach showed **quite good results**:
 
 ## 🔍 Recognition Examples
 
-| Original Image | Recognized Result |
-|:--------------:|:-----------------:|
-| ![Original 1](readme_images/4_1.png) | ![Original 1](readme_images/4.png) |
-| ![Original 2](readme_images/1_1.png) | ![Original 2](readme_images/1.png) |
-| ![Original 3](readme_images/2_1.png) | ![Original 3](readme_images/2.png) |
-| ![Original 4](readme_images/3_1.png) | ![Original 4](readme_images/3.png) |
+
+![0](readme_images/predicted/0__predicted.png)
+![1](readme_images/predicted/1__predicted.png)
+![2](readme_images/predicted/2__predicted.png)
+<!-- ![3](readme_images/predicted/3__predicted.png) -->
+![4](readme_images/predicted/4__predicted.png)
+![11](readme_images/predicted/11__predicted.png)
+![12](readme_images/predicted/12__predicted.png)
+![13](readme_images/predicted/13__predicted.png)
+![14](readme_images/predicted/14__predicted.png)
+![15](readme_images/predicted/15__predicted.png)
+![n0](readme_images/predicted/n0__predicted.png)
+<!-- ![n1](readme_images/predicted/n1__predicted.png) -->
+![n2](readme_images/predicted/n2__predicted.png)
+![n3](readme_images/predicted/n3__predicted.png)
+![t0](readme_images/predicted/t0__predicted.png)
+![t1](readme_images/predicted/t1__predicted.png)
+![t2](readme_images/predicted/t2__predicted.png)
+![t3](readme_images/predicted/t3__predicted.png)
+![t4](readme_images/predicted/t4__predicted.png)
+![t5](readme_images/predicted/t5__predicted.png)
+![t6](readme_images/predicted/t6__predicted.png)
+![t7](readme_images/predicted/t7__predicted.png)
+![test_letters_my0](readme_images/predicted/test_letters_my0__predicted.png)
+![test_my](readme_images/predicted/test_my__predicted.png)
 
 
 ## Model Robustness Testing

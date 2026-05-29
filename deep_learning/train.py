@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets
 import yaml
+import matplotlib.pyplot as plt
 
 from training.callbacks import EarlyStopping
 from training.trainer import ModelTrainer
@@ -116,6 +117,26 @@ def main():
     
     # log_transformed_images(writer, train_dataset, num_samples=128, tag="train_augmented")
     # log_transformed_images(writer, val_dataset, num_samples=64, tag="val_original")
+
+    fig, axes = plt.subplots(16, 16, figsize=(16, 16))
+    for i in range(254):
+        img, label = train_dataset[i]
+        row = i // 16
+        col = i % 16
+        axes[row, col].imshow(img.squeeze(), cmap='gray')
+        axes[row, col].set_title(f'{class_names[label]}', fontsize=6)
+        axes[row, col].axis('off')
+
+    for i in range(254, 256):
+        row = i // 16
+        col = i % 16
+        axes[row, col].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    print(f"Image shape: {img.shape}") 
+
 
     train_loader = DataLoader(
         train_dataset, 

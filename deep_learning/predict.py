@@ -1,3 +1,4 @@
+from pathlib import Path
 import sys
 from inference.predictor import AlphabetPredictor
 
@@ -12,8 +13,10 @@ def main():
     else:
         image_path = "hor_text.png"
         print(f"Use test image: {image_path}")
+
+    output_file_name = f"{Path(image_path).stem}__predicted{Path(image_path).suffix}"
     
-    results = predictor.recognize_image(image_path, display=True)
+    results = predictor.recognize_image(image_path, True, output_file_name)
     
     if results:
         recognized_text = "".join([r['letter'] for r in results])
