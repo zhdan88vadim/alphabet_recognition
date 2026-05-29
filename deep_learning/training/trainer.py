@@ -223,17 +223,17 @@ class ModelTrainer:
         
         # Логируем в MLflow
         if self.use_mlflow:
-            mlflow.log_figure(fig, f"confusion_matrix_epoch_{epoch}.png")
+            mlflow.log_figure(fig, f"confusion_matrix_final.png")
         
-        plt.savefig(f"../readme_images/confusion_matrix_epoch_{epoch}.png", dpi=150, bbox_inches='tight')
+        plt.savefig(f"../readme_images/confusion_matrix_final.png", dpi=150, bbox_inches='tight')
         plt.close()
         
         # Логируем classification report
-        if self.use_mlflow and epoch % 5 == 0:  # Логируем каждые 5 эпох
-            report = classification_report(all_labels, all_preds, target_names=class_names, zero_division=0)
-            with open(f"classification_report_epoch_{epoch}.txt", "w") as f:
-                f.write(report)
-            mlflow.log_artifact(f"classification_report_epoch_{epoch}.txt")
+        # if self.use_mlflow and epoch % 5 == 0:  # Логируем каждые 5 эпох
+        #     report = classification_report(all_labels, all_preds, target_names=class_names, zero_division=0)
+        #     with open(f"classification_report_epoch_{epoch}.txt", "w") as f:
+        #         f.write(report)
+        #     mlflow.log_artifact(f"classification_report_epoch_{epoch}.txt")
     
     def train(self, train_loader, val_loader, class_names, early_stopping):
         """Основной цикл обучения с MLflow логированием"""
@@ -323,8 +323,8 @@ class ModelTrainer:
                         mlflow.log_metric("best_val_recall", val_recall, step=epoch)
                         
                         # Логируем confusion matrix для лучшей модели
-                        if epoch > 5:  # Начиная с 5 эпохи
-                            self.log_confusion_matrix(val_loader, class_names, epoch + 1)
+                        # if epoch > 5:  # Начиная с 5 эпохи
+                        #     self.log_confusion_matrix(val_loader, class_names, epoch + 1)
                         
                         # Сохраняем модель в MLflow
                         model_name = f"alphabet_model_f1_{self.best_f1:.4f}_acc_{self.best_acc:.2f}".replace('.', '_')
@@ -366,6 +366,8 @@ class ModelTrainer:
                 
                 # Логируем финальный classification report
                 self._log_final_classification_report(val_loader, class_names)
+
+                self.log_confusion_matrix(val_loader, class_names, epoch + 1)
                 
                 mlflow.end_run()
                 print("✅ MLflow run завершён")

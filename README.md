@@ -126,12 +126,12 @@ This approach showed **quite good results**:
 ### Accuracy
 ![Accuracy Plot](readme_images/training_validation_accuracy.png)
 
-- **Best Validation Accuracy**: 98.42%
-- **Test Accuracy**: ---%
+- **Best Validation Accuracy**: 90.56%
+- **Best Validation F1 Score**: 0.89
 
 
 ### Train Confusion matrix
-![Confusion matrix](readme_images/confusion_matrix.png)
+![Confusion matrix](readme_images/confusion_matrix_train.png)
 
 
 ## 🔍 Recognition Examples
