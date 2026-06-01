@@ -285,9 +285,9 @@
         }
         
         // 2. Инвертируем (Invert)
-        for (let i = 0; i < grayData.length; i++) {
-            grayData[i] = 1 - grayData[i];
-        }
+        // for (let i = 0; i < grayData.length; i++) {
+        //     grayData[i] = 1 - grayData[i];
+        // }
         
         // 3. ExtractLetterWithMargin
         const extracted = extractLetterWithMargin(grayData, 15);
@@ -442,18 +442,101 @@
         return roiCanvas;
     }
 
+    function preprocessImageOpenCV(imageMat) {
+        let gray;
+        
+        // 1. Конвертируем в grayscale если нужно
+        if (imageMat.channels() === 3) {
+            gray = new cv.Mat();
+            cv.cvtColor(imageMat, gray, cv.COLOR_RGBA2GRAY);
+        } else {
+            gray = imageMat.clone();
+        }
+        
+        // 2. Размытие по Гауссу
+        let blurred = new cv.Mat();
+        cv.GaussianBlur(imageMat, blurred, new cv.Size(5, 5), 0);
+        // cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+        
+        // 3. Адаптивная бинаризация
+        let binary = new cv.Mat();
+        cv.adaptiveThreshold(
+            blurred, binary, 255, 
+            cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv.THRESH_BINARY_INV, 11, 2
+        );
+        
+        // 4. Морфологические операции
+        let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+        
+        let closed = new cv.Mat();
+        cv.morphologyEx(binary, closed, cv.MORPH_CLOSE, kernel);
+        
+        let opened = new cv.Mat();
+        cv.morphologyEx(closed, opened, cv.MORPH_OPEN, kernel);
+        
+        let dilated = new cv.Mat();
+        cv.dilate(opened, dilated, kernel, new cv.Point(-1, -1), 2);
+        
+        // ✅ ОЧИЩАЕМ ВСЕ ВРЕМЕННЫЕ Mat'ы
+        blurred.delete();
+        // binary.delete();
+        kernel.delete();
+        closed.delete();
+        opened.delete();
+        // dilated.delete(); // НЕ УДАЛЯЕМ - он нужен для возврата
+        
+        // ✅ ВОЗВРАЩАЕМ gray И dilated (НЕ УДАЛЯЙТЕ ИХ)
+        return { gray: gray, binary: dilated };
+    }
+
+
     async function recognizeImage(imageMat) {
         updateStatus('Обработка изображения...', 20);
         
         let gray = new cv.Mat();
         cv.cvtColor(imageMat, gray, cv.COLOR_RGBA2GRAY);
+
+        // 2. Размытие по Гауссу
+        let blurred = new cv.Mat();
+        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
         
+        // 3. Адаптивная бинаризация
+        let binary = new cv.Mat();
+        cv.adaptiveThreshold(
+            blurred, binary, 255, 
+            cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv.THRESH_BINARY_INV, 11, 2
+        );
+
+
+        // 4. Морфологические операции
+        let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+        
+        let closed = new cv.Mat();
+        cv.morphologyEx(binary, closed, cv.MORPH_CLOSE, kernel);
+        
+        let opened = new cv.Mat();
+        cv.morphologyEx(closed, opened, cv.MORPH_OPEN, kernel);
+        
+        let dilated = new cv.Mat();
+        cv.dilate(opened, dilated, kernel, new cv.Point(-1, -1), 2);
+
+
+        console.log('before', gray.channels());
+        debugger
+        
+        // const { gray, binary } = preprocessImageOpenCV(imageMat)
+        
+        console.log('after');
+
         updateStatus('Поиск букв на изображении...', 40);
-        const letterBoxes = segmentLetters(gray);
+        const letterBoxes = segmentLetters(dilated);
         
         if (letterBoxes.length === 0) {
             updateStatus('⚠️ Буквы не найдены.', 100);
             gray.delete();
+            binary.delete();
             return [];
         }
         
@@ -470,7 +553,7 @@
             console.log(`Буква ${i+1}: (${x},${y}) ${w}x${h}`);
             
             // Вырезаем область
-            const letterRoi = gray.roi(new cv.Rect(x, y, w, h));
+            const letterRoi = dilated.roi(new cv.Rect(x, y, w, h));
             
             // Создаем canvas из ROI (через cv.imshow)
             const roiCanvas = matToCanvas(letterRoi);
@@ -479,7 +562,8 @@
             roiCanvas.style.border = '1px solid #667eea';
             roiCanvas.style.margin = '5px';
 
-
+            console.log('thickenLetterWithOpenCV');
+            
             thickenLetterWithOpenCV(roiCanvas);
             
             // Применяем предобработку (как в рабочем примере с рисованием)
@@ -561,8 +645,16 @@
             
             letterRoi.delete();
         }
-        
+    
         gray.delete();
+        binary.delete();
+
+  
+        blurred.delete();
+        kernel.delete();
+        closed.delete();
+        opened.delete();
+        dilated.delete();        
         
         if (debugDiv && results.length > 0) {
             document.getElementById('debugCard').style.display = 'block';
@@ -644,8 +736,10 @@
             }
         }
     }
-    
+        
     async function loadImage(event) {
+        console.log('loadImage');
+        
         if (!cvReady) {
             alert('OpenCV еще не загружен. Подождите...');
             return;
@@ -661,28 +755,44 @@
         
         const img = new Image();
         img.onload = async () => {
-            updateStatus('Обработка...', 0);
-            
-            const originalCanvas = document.getElementById('originalCanvas');
-            originalCanvas.width = img.width;
-            originalCanvas.height = img.height;
-            const ctx = originalCanvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            
-            let src = cv.imread(originalCanvas);
-            const results = await recognizeImage(src);
-            
-            if (results.length > 0) {
-                drawResults(src, results);
-                displayTextResults(results);
-                updateStatus(`✅ Распознано ${results.length} букв`, 100);
-            } else {
-                updateStatus('❌ Буквы не найдены', 100);
-                document.getElementById('resultCard').style.display = 'none';
-                document.getElementById('debugCard').style.display = 'none';
+            try {
+                updateStatus('Обработка...', 0);
+                
+                const originalCanvas = document.getElementById('originalCanvas');
+                originalCanvas.width = img.width;
+                originalCanvas.height = img.height;
+                const ctx = originalCanvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                let src = null;
+                try {
+                    src = cv.imread(originalCanvas);
+                    const results = await recognizeImage(src);
+                    
+                    if (results.length > 0) {
+                        drawResults(src, results);
+                        displayTextResults(results);
+                        updateStatus(`✅ Распознано ${results.length} букв`, 100);
+                    } else {
+                        updateStatus('❌ Буквы не найдены', 100);
+                        document.getElementById('resultCard').style.display = 'none';
+                        document.getElementById('debugCard').style.display = 'none';
+                    }
+                } catch (err) {
+                    console.error('Ошибка при распознавании:', err);
+                    updateStatus(`❌ Ошибка распознавания: ${err.message}`, 0);
+                    document.getElementById('resultCard').style.display = 'none';
+                    document.getElementById('debugCard').style.display = 'none';
+                } finally {
+                    if (src && !src.isDeleted()) {
+                        src.delete();
+                    }
+                }
+                
+            } catch (err) {
+                console.error('Ошибка при загрузке изображения:', err);
+                updateStatus(`❌ Ошибка: ${err.message}`, 0);
             }
-            
-            src.delete();
         };
         img.src = URL.createObjectURL(file);
     }
@@ -709,6 +819,8 @@
     });
     
     async function init() {
+        console.log('init');
+
         updateStatus('Загрузка модели...', 10);
         const modelLoaded = await loadModel();
         if (modelLoaded && cvReady) {
@@ -722,7 +834,11 @@
     if (typeof cv !== 'undefined' && cv.Mat) {
         cvReady = true;
         init();
+        console.log('001');
+        
     }
+
+    console.log('002');
 </script>
 <script src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCVReady()"></script>
 </body>
