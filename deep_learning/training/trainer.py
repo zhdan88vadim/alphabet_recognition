@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import mlflow
 import mlflow.pytorch
+from datetime import datetime
 from sklearn.metrics import f1_score, precision_score, recall_score, classification_report
 
 class ModelTrainer:
@@ -241,12 +242,17 @@ class ModelTrainer:
         
         print(f"\n Начинаем обучение на {epochs} эпох...")
         
-        # Проверяем, активен ли уже run
         active_run = mlflow.active_run()
         
-        if self.use_mlflow and not active_run:
+        if active_run:
+            print(f"⚠️ Found active MLflow run: {active_run.info.run_id}")
+            print(f"   Ending it to start a fresh one...")
+            mlflow.end_run()
+        
+        if self.use_mlflow:
             # Запускаем новый run только если нет активного
-            run_name = self.config.get('run_name', f"run_{self.best_acc:.2f}")
+            run_name = self.config.get('run_name', f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            print("run_name: ", run_name)
             mlflow.start_run(run_name=run_name)
             print(f"🚀 Started MLflow run: {run_name}")
         elif self.use_mlflow and active_run:
