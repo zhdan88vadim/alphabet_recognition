@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Распознавание русских букв - Исправленный</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
+    <style>
+        body { font-family: Arial; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .container { background: white; border-radius: 20px; padding: 30px; max-width: 650px; }
+        canvas { border: 2px solid #333; cursor: crosshair; background: white; margin: 20px auto; display: block; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 30px; margin: 10px; border-radius: 25px; cursor: pointer; font-weight: bold; }
+        .prediction { margin: 10px 0; padding: 15px; background: #f8f9fa; border-radius: 10px; }
+        .letter { font-size: 28px; font-weight: bold; color: #667eea; display: inline-block; width: 60px; }
+        .prob-bar { background: #e0e0e0; border-radius: 10px; overflow: hidden; height: 35px; margin-top: 5px; }
+        .prob-fill { background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; color: white; font-weight: bold; transition: width 0.3s; }
+        .step { font-size: 12px; color: #666; margin-top: 5px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🎨 Распознавание русских букв</h2>
+    <p>Нарисуйте <strong>ЧЕРНУЮ</strong> букву на <strong>БЕЛОМ</strong> фоне</p>
+    <canvas id="canvas" width="280" height="280"></canvas><br>
+    <button onclick="clearCanvas()">Очистить</button>
+    <button onclick="predict()">Распознать</button>
+    <div id="result"></div>
+    <div id="debug" class="step"></div>
+</div>
+
+<script>
+    // Русский алфавит в правильном порядке (из чекпоинта)
+    const classNames = ['Ё', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 
+                        'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 
+                        'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ', 'Ы', 'Ь', 'Э', 'Ю', 'Я'];
+    
+    let session = null;
+    
+    // Canvas setup - БЕЛЫЙ фон, ЧЕРНЫЙ цвет для рисования
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 280, 280);
+    ctx.strokeStyle = 'black';
+    ctx.fillStyle = 'black';
+    ctx.lineWidth = 25;
+    ctx.lineCap = 'round';
+    
+    let drawing = false;
+    let lastX = 0, lastY = 0;
+    
+    function getCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        let x = (clientX - rect.left) * scaleX;
+        let y = (clientY - rect.top) * scaleY;
+        return { x: Math.min(Math.max(0, x), canvas.width), y: Math.min(Math.max(0, y), canvas.height) };
+    }
+    
+    function startDraw(e) {
+        drawing = true;
+        const p = getCoords(e);
+        lastX = p.x;
+        lastY = p.y;
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(lastX, lastY);
+        ctx.stroke();
+        e.preventDefault();
+    }
+    
+    function draw(e) {
+        if (!drawing) return;
+        const p = getCoords(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        lastX = p.x;
+        lastY = p.y;
+        e.preventDefault();
+    }
+    
+    function stopDraw() { drawing = false; ctx.beginPath(); }
+    
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('touchstart', startDraw);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDraw);
+    
+    function clearCanvas() {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('debug').innerHTML = '';
+    }
+    
+    // Функция softmax для преобразования логитов в вероятности
+    function softmax(logits) {
+        const maxLogit = Math.max(...logits);
+        const expValues = logits.map(l => Math.exp(l - maxLogit));
+        const sumExp = expValues.reduce((a, b) => a + b, 0);
+        return expValues.map(e => e / sumExp);
+    }
+    
+    // Функция поиска bounding box буквы
+    function findBoundingBox(imageData, threshold=0.5) {
+        let minX = 64, minY = 64, maxX = 0, maxY = 0;
+        let hasPixel = false;
+        
+        for (let y = 0; y < 64; y++) {
+            for (let x = 0; x < 64; x++) {
+                const idx = y * 64 + x;
+                if (imageData[idx] < threshold) {
+                    hasPixel = true;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+        
+        if (!hasPixel) return null;
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+    
+    // Функция вырезания буквы с отступом
+    function extractLetterWithMargin(imageData, margin=15) {
+        const bbox = findBoundingBox(imageData);
+        if (!bbox) return null;
+        
+        let startX = Math.max(0, bbox.x - margin);
+        let startY = Math.max(0, bbox.y - margin);
+        let endX = Math.min(64, bbox.x + bbox.w + margin);
+        let endY = Math.min(64, bbox.y + bbox.h + margin);
+        
+        const cropped = [];
+        for (let y = startY; y < endY; y++) {
+            for (let x = startX; x < endX; x++) {
+                cropped.push(imageData[y * 64 + x]);
+            }
+        }
+        
+        return { data: cropped, w: endX - startX, h: endY - startY };
+    }
+    
+    // Полная предобработка как в Python
+    function preprocessImage() {
+        // 1. Получаем данные с canvas и изменяем размер до 64x64
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 64;
+        tempCanvas.height = 64;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(canvas, 0, 0, 64, 64);
+        
+        // Получаем изображение в градациях серого
+        let imageData = tempCtx.getImageData(0, 0, 64, 64);
+        let grayData = new Array(64 * 64);
+        
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            let gray = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / (3 * 255);
+            grayData[i/4] = gray;
+        }
+        
+        // 2. Инвертируем (Invert)
+        for (let i = 0; i < grayData.length; i++) {
+            grayData[i] = 1 - grayData[i];
+        }
+        
+        // 3. ExtractLetterWithMargin
+        const extracted = extractLetterWithMargin(grayData, 15);
+        if (!extracted) return null;
+        
+        // 4. SquarePad
+        const size = Math.max(extracted.w, extracted.h);
+        const squared = new Array(size * size).fill(1.0);
+        
+        const offsetX = Math.floor((size - extracted.w) / 2);
+        const offsetY = Math.floor((size - extracted.h) / 2);
+        
+        for (let y = 0; y < extracted.h; y++) {
+            for (let x = 0; x < extracted.w; x++) {
+                const srcIdx = y * extracted.w + x;
+                const dstIdx = (offsetY + y) * size + (offsetX + x);
+                squared[dstIdx] = extracted.data[srcIdx];
+            }
+        }
+        
+        // 5. Resize обратно до 64x64
+        const resized = new Array(64 * 64);
+        const scale = size / 64;
+        
+        for (let y = 0; y < 64; y++) {
+            for (let x = 0; x < 64; x++) {
+                const srcX = Math.floor(x * scale);
+                const srcY = Math.floor(y * scale);
+                if (srcX < size && srcY < size) {
+                    resized[y * 64 + x] = squared[srcY * size + srcX];
+                } else {
+                    resized[y * 64 + x] = 1.0;
+                }
+            }
+        }
+        
+        // 6. Normalize (mean=0.5, std=0.5)
+        const normalized = new Float32Array(1 * 1 * 64 * 64);
+        for (let i = 0; i < resized.length; i++) {
+            normalized[i] = (resized[i] - 0.5) / 0.5;
+        }
+        
+        const mean = normalized.reduce((a,b) => a + b, 0) / normalized.length;
+        document.getElementById('debug').innerHTML = `Preprocessed: mean=${mean.toFixed(3)} (range -1..1)`;
+        
+        return new ort.Tensor('float32', normalized, [1, 1, 64, 64]);
+    }
+    
+    async function loadModel() {
+        try {
+            document.getElementById('result').innerHTML = 'Загрузка модели...';
+            const response = await fetch('./alphabet_model.onnx');
+            const arrayBuffer = await response.arrayBuffer();
+            session = await ort.InferenceSession.create(arrayBuffer);
+            document.getElementById('result').innerHTML = '✅ Модель загружена! Нарисуйте букву';
+        } catch(e) {
+            document.getElementById('result').innerHTML = 'Ошибка: ' + e.message;
+        }
+    }
+    
+    async function predict() {
+        if (!session) {
+            alert('Модель не загружена');
+            return;
+        }
+        
+        try {
+            document.getElementById('result').innerHTML = 'Распознавание...';
+            const inputTensor = preprocessImage();
+            
+            if (!inputTensor) {
+                document.getElementById('result').innerHTML = 'Не удалось найти букву. Нарисуйте букву жирнее.';
+                return;
+            }
+            
+            const results = await session.run({ input: inputTensor });
+            const logits = results.output.data;
+            
+            // ПРИМЕНЯЕМ SOFTMAX для получения вероятностей
+            const probabilities = softmax(Array.from(logits));
+            
+            // Получаем топ-3
+            const top3 = probabilities
+                .map((p, i) => ({ p, i }))
+                .sort((a, b) => b.p - a.p)
+                .slice(0, 3);
+            
+            // Проверяем сумму вероятностей
+            const sumProbs = top3.reduce((sum, t) => sum + t.p, 0);
+            console.log(`Сумма вероятностей топ-3: ${(sumProbs * 100).toFixed(1)}%`);
+            
+            let html = '<h3>📊 Результаты распознавания:</h3>';
+            for (let t of top3) {
+                const letter = classNames[t.i];
+                const percent = (t.p * 100).toFixed(1);
+                html += `
+                    <div class="prediction">
+                        <div>
+                            <span class="letter">${letter}</span>
+                            <span>${percent}% уверенность</span>
+                        </div>
+                        <div class="prob-bar">
+                            <div class="prob-fill" style="width: ${percent}%">${percent}%</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Добавляем совет при низкой уверенности
+            if (top3[0].p < 0.6) {
+                html += '<div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px;">💡 Совет: Нарисуйте букву более четко и жирно</div>';
+            }
+            
+            document.getElementById('result').innerHTML = html;
+            
+        } catch(e) {
+            console.error(e);
+            document.getElementById('result').innerHTML = 'Ошибка: ' + e.message;
+        }
+    }
+    
+    loadModel();
+</script>
+</body>
+</html>

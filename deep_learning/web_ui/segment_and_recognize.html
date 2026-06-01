@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Распознавание русских букв на изображении</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            background: #f0f0ff;
+            border-color: #764ba2;
+        }
+        .image-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .image-box {
+            flex: 1;
+            min-width: 300px;
+            text-align: center;
+        }
+        canvas, img {
+            max-width: 100%;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            background: white;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            margin: 10px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .result-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f0ff;
+            border-radius: 10px;
+        }
+        .letter-box {
+            display: inline-block;
+            margin: 5px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 60px;
+        }
+        .letter {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .confidence {
+            font-size: 12px;
+            color: #666;
+        }
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-weight: bold;
+        }
+        .progress {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h2>📷 Распознавание текста на изображении</h2>
+        <p>Загрузите изображение с текстом (русские буквы)</p>
+        
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            📁 Нажмите или перетащите изображение сюда
+            <input type="file" id="fileInput" accept="image/*" style="display: none" onchange="loadImage(event)">
+        </div>
+        
+        <div id="status" class="loading">🔄 Загрузка OpenCV и модели...</div>
+        <div id="progress" class="progress hidden"><div class="progress-bar"></div></div>
+    </div>
+    
+    <div class="image-container">
+        <div class="image-box">
+            <h3>Исходное изображение</h3>
+            <canvas id="originalCanvas"></canvas>
+        </div>
+        <div class="image-box">
+            <h3>Результат распознавания</h3>
+            <canvas id="resultCanvas"></canvas>
+        </div>
+    </div>
+    
+    <div class="card" id="resultCard" style="display: none;">
+        <h3>📝 Распознанный текст:</h3>
+        <div id="recognizedText" class="result-text"></div>
+        <div id="lettersDetail"></div>
+    </div>
+</div>
+
+<script>
+    let session = null;
+    let cvReady = false;
+    
+    const classNames = ['Ё', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 
+                        'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 
+                        'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ', 'Ы', 'Ь', 'Э', 'Ю', 'Я'];
+    
+    function onOpenCVReady() {
+        console.log("OpenCV готов");
+        cvReady = true;
+        init();
+    }
+    
+    async function loadModel() {
+        try {
+            updateStatus('Загрузка модели...', 10);
+            const response = await fetch('./alphabet_model.onnx');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            session = await ort.InferenceSession.create(arrayBuffer);
+            updateStatus('✅ Модель загружена', 100);
+            return true;
+        } catch(e) {
+            updateStatus('❌ Ошибка загрузки модели: ' + e.message, 0);
+            console.error(e);
+            return false;
+        }
+    }
+    
+    function softmax(logits) {
+        const maxLogit = Math.max(...logits);
+        const expValues = logits.map(l => Math.exp(l - maxLogit));
+        const sumExp = expValues.reduce((a, b) => a + b, 0);
+        return expValues.map(e => e / sumExp);
+    }
+    
+    // Функции для предобработки (ТЕ ЖЕ САМЫЕ, что и в рисованной версии)
+    function findBoundingBox(imageData, threshold=0.5) {
+        let minX = 64, minY = 64, maxX = 0, maxY = 0;
+        let hasPixel = false;
+        
+        for (let y = 0; y < 64; y++) {
+            for (let x = 0; x < 64; x++) {
+                const idx = y * 64 + x;
+                if (imageData[idx] < threshold) {
+                    hasPixel = true;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+        
+        if (!hasPixel) return null;
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+    
+    function extractLetterWithMargin(imageData, margin=15) {
+        const bbox = findBoundingBox(imageData);
+        if (!bbox) return null;
+        
+        let startX = Math.max(0, bbox.x - margin);
+        let startY = Math.max(0, bbox.y - margin);
+        let endX = Math.min(64, bbox.x + bbox.w + margin);
+        let endY = Math.min(64, bbox.y + bbox.h + margin);
+        
+        const cropped = [];
+        for (let y = startY; y < endY; y++) {
+            for (let x = startX; x < endX; x++) {
+                cropped.push(imageData[y * 64 + x]);
+            }
+        }
+        
+        return { data: cropped, w: endX - startX, h: endY - startY };
+    }
+    
+    // ТА ЖЕ САМАЯ предобработка, что и для рисованной буквы
+    function preprocessLetterImage(letterCanvas_64x64) {
+        // Получаем изображение в градациях серого
+        let imageData = letterCanvas_64x64.getImageData(0, 0, 64, 64);
+        let grayData = new Array(64 * 64);
+        
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            let gray = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / (3 * 255);
+            grayData[i/4] = gray;
+        }
+        
+        // Инвертируем (Invert)
+        for (let i = 0; i < grayData.length; i++) {
+            grayData[i] = 1 - grayData[i];
+        }
+        
+        // ExtractLetterWithMargin
+        const extracted = extractLetterWithMargin(grayData, 15);
+        if (!extracted) return null;
+        
+        // SquarePad
+        const size = Math.max(extracted.w, extracted.h);
+        const squared = new Array(size * size).fill(1.0);
+        
+        const offsetX = Math.floor((size - extracted.w) / 2);
+        const offsetY = Math.floor((size - extracted.h) / 2);
+        
+        for (let y = 0; y < extracted.h; y++) {
+            for (let x = 0; x < extracted.w; x++) {
+                const srcIdx = y * extracted.w + x;
+                const dstIdx = (offsetY + y) * size + (offsetX + x);
+                squared[dstIdx] = extracted.data[srcIdx];
+            }
+        }
+        
+        // Resize обратно до 64x64
+        const resized = new Array(64 * 64);
+        const scale = size / 64;
+        
+        for (let y = 0; y < 64; y++) {
+            for (let x = 0; x < 64; x++) {
+                const srcX = Math.floor(x * scale);
+                const srcY = Math.floor(y * scale);
+                if (srcX < size && srcY < size) {
+                    resized[y * 64 + x] = squared[srcY * size + srcX];
+                } else {
+                    resized[y * 64 + x] = 1.0;
+                }
+            }
+        }
+        
+        // Normalize (mean=0.5, std=0.5)
+        const normalized = new Float32Array(1 * 1 * 64 * 64);
+        for (let i = 0; i < resized.length; i++) {
+            normalized[i] = (resized[i] - 0.5) / 0.5;
+        }
+        
+        return new ort.Tensor('float32', normalized, [1, 1, 64, 64]);
+    }
+    
+    // Сегментация букв на изображении
+    function segmentLetters(grayMat, minArea = 450, maxArea = 7000) {
+        const binary = new cv.Mat();
+        cv.adaptiveThreshold(grayMat, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
+        
+        const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+        const closed = new cv.Mat();
+        cv.morphologyEx(binary, closed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 1);
+        
+        const opened = new cv.Mat();
+        cv.morphologyEx(closed, opened, cv.MORPH_OPEN, kernel, new cv.Point(-1, -1), 1);
+        
+        const dilated = new cv.Mat();
+        cv.dilate(opened, dilated, kernel, new cv.Point(-1, -1), 2);
+        
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+        
+        const letterBoxes = [];
+        
+        for (let i = 0; i < contours.size(); i++) {
+            const contour = contours.get(i);
+            const area = cv.contourArea(contour);
+            
+            if (area < minArea || area > maxArea) continue;
+            
+            const rect = cv.boundingRect(contour);
+            const aspectRatio = rect.width / rect.height;
+            
+            if (aspectRatio < 0.3 || aspectRatio > 2.5) continue;
+            
+            const padding = 8;
+            const x = Math.max(0, rect.x - padding);
+            const y = Math.max(0, rect.y - padding);
+            const w = Math.min(grayMat.cols - x, rect.width + 2 * padding);
+            const h = Math.min(grayMat.rows - y, rect.height + 2 * padding);
+            
+            letterBoxes.push({ bbox: { x, y, w, h }, area: area });
+        }
+        
+        letterBoxes.sort((a, b) => a.bbox.x - b.bbox.x);
+        
+        binary.delete();
+        kernel.delete();
+        closed.delete();
+        opened.delete();
+        dilated.delete();
+        contours.delete();
+        hierarchy.delete();
+        
+        return letterBoxes;
+    }
+    
+    // Распознавание одной буквы с ТОЙ ЖЕ предобработкой
+    async function recognizeLetter(letterRoi) {
+        // Конвертируем OpenCV Mat в canvas 64x64
+        const roiWidth = letterRoi.cols;
+        const roiHeight = letterRoi.rows;
+        
+        const letterCanvas = document.createElement('canvas');
+        letterCanvas.width = roiWidth;
+        letterCanvas.height = roiHeight;
+        const letterCtx = letterCanvas.getContext('2d');
+        
+        const imgData = new ImageData(roiWidth, roiHeight);
+        const data = letterRoi.data;
+        
+        for (let i = 0; i < roiWidth * roiHeight; i++) {
+            const pixelValue = data[i * 4];
+            imgData.data[i * 4] = pixelValue;
+            imgData.data[i * 4 + 1] = pixelValue;
+            imgData.data[i * 4 + 2] = pixelValue;
+            imgData.data[i * 4 + 3] = 255;
+        }
+        letterCtx.putImageData(imgData, 0, 0);
+        
+        // Создаем canvas 64x64 с белым фоном и рисуем букву по центру
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 64;
+        tempCanvas.height = 64;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        tempCtx.fillStyle = 'white';
+        tempCtx.fillRect(0, 0, 64, 64);
+        
+        const maxSize = 50;
+        const scale = Math.min(maxSize / Math.max(roiWidth, roiHeight), 1);
+        const scaledW = Math.max(1, Math.floor(roiWidth * scale));
+        const scaledH = Math.max(1, Math.floor(roiHeight * scale));
+        const offsetX = (64 - scaledW) / 2;
+        const offsetY = (64 - scaledH) / 2;
+        
+        tempCtx.drawImage(letterCanvas, 0, 0, roiWidth, roiHeight, offsetX, offsetY, scaledW, scaledH);
+        
+        // Применяем ТУ ЖЕ предобработку, что и для рисованной буквы
+        const inputTensor = preprocessLetterImage(tempCtx);
+        if (!inputTensor) return { letter: '?', confidence: 0 };
+        
+        const results = await session.run({ input: inputTensor });
+        const logits = results.output.data;
+        const probabilities = softmax(Array.from(logits));
+        const topIdx = probabilities.reduce((maxIdx, p, idx) => p > probabilities[maxIdx] ? idx : maxIdx, 0);
+        
+        return {
+            letter: classNames[topIdx],
+            confidence: probabilities[topIdx] * 100
+        };
+    }
+    
+    async function recognizeImage(imageMat) {
+        updateStatus('Обработка изображения...', 20);
+        
+        let gray = new cv.Mat();
+        cv.cvtColor(imageMat, gray, cv.COLOR_RGBA2GRAY);
+        
+        updateStatus('Поиск букв на изображении...', 40);
+        const letterBoxes = segmentLetters(gray);
+        
+        if (letterBoxes.length === 0) {
+            updateStatus('⚠️ Буквы не найдены.', 100);
+            gray.delete();
+            return [];
+        }
+        
+        updateStatus(`Найдено ${letterBoxes.length} букв, распознавание...`, 60);
+        
+        const results = [];
+        
+        for (let i = 0; i < letterBoxes.length; i++) {
+            const box = letterBoxes[i];
+            const { x, y, w, h } = box.bbox;
+            
+            const letterRoi = gray.roi(new cv.Rect(x, y, w, h));
+            const recognition = await recognizeLetter(letterRoi);
+            
+            results.push({
+                index: i,
+                bbox: box.bbox,
+                letter: recognition.letter,
+                confidence: recognition.confidence
+            });
+            
+            const progress = 60 + (i / letterBoxes.length) * 30;
+            updateStatus(`Распознано ${i+1}/${letterBoxes.length} букв`, progress);
+            
+            letterRoi.delete();
+        }
+        
+        gray.delete();
+        return results;
+    }
+    
+    function drawResults(originalMat, results) {
+        const canvas = document.getElementById('resultCanvas');
+        canvas.width = originalMat.cols;
+        canvas.height = originalMat.rows;
+        const ctx = canvas.getContext('2d');
+        
+        const imgData = new ImageData(new Uint8ClampedArray(originalMat.data), originalMat.cols, originalMat.rows);
+        ctx.putImageData(imgData, 0, 0);
+        
+        for (const res of results) {
+            const { x, y, w, h } = res.bbox;
+            
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x, y, w, h);
+            
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(x, y - 25, Math.min(w, 60), 22);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText(res.letter, x + 5, y - 5);
+            
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.font = '12px Arial';
+            ctx.fillText(`${res.confidence.toFixed(0)}%`, x + 5, y + h - 5);
+        }
+    }
+    
+    function displayTextResults(results) {
+        const text = results.map(r => r.letter).join('');
+        document.getElementById('recognizedText').innerHTML = `"${text}"`;
+        
+        let lettersHtml = '<div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px;">';
+        for (const res of results) {
+            lettersHtml += `
+                <div class="letter-box">
+                    <div class="letter">${res.letter}</div>
+                    <div class="confidence">${res.confidence.toFixed(1)}%</div>
+                </div>
+            `;
+        }
+        lettersHtml += '</div>';
+        document.getElementById('lettersDetail').innerHTML = lettersHtml;
+        document.getElementById('resultCard').style.display = 'block';
+    }
+    
+    function updateStatus(message, progress) {
+        document.getElementById('status').innerHTML = message;
+        if (progress !== undefined && progress >= 0) {
+            const progressDiv = document.getElementById('progress');
+            progressDiv.classList.remove('hidden');
+            document.querySelector('.progress-bar').style.width = progress + '%';
+            if (progress >= 100) {
+                setTimeout(() => {
+                    progressDiv.classList.add('hidden');
+                }, 1000);
+            }
+        }
+    }
+    
+    async function loadImage(event) {
+        if (!cvReady) {
+            alert('OpenCV еще не загружен. Подождите...');
+            return;
+        }
+        
+        if (!session) {
+            alert('Модель еще не загружена. Подождите...');
+            return;
+        }
+        
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const img = new Image();
+        img.onload = async () => {
+            updateStatus('Обработка...', 0);
+            
+            const originalCanvas = document.getElementById('originalCanvas');
+            originalCanvas.width = img.width;
+            originalCanvas.height = img.height;
+            const ctx = originalCanvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            
+            let src = cv.imread(originalCanvas);
+            const results = await recognizeImage(src);
+            
+            if (results.length > 0) {
+                drawResults(src, results);
+                displayTextResults(results);
+                updateStatus(`✅ Распознано ${results.length} букв`, 100);
+            } else {
+                updateStatus('❌ Буквы не найдены', 100);
+                document.getElementById('resultCard').style.display = 'none';
+            }
+            
+            src.delete();
+        };
+        img.src = URL.createObjectURL(file);
+    }
+    
+    const dropZone = document.querySelector('.upload-area');
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.background = '#f0f0ff';
+    });
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.style.background = 'white';
+    });
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.background = 'white';
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const input = document.getElementById('fileInput');
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            input.files = dataTransfer.files;
+            loadImage({ target: input });
+        }
+    });
+    
+    async function init() {
+        updateStatus('Загрузка модели...', 10);
+        const modelLoaded = await loadModel();
+        if (modelLoaded && cvReady) {
+            updateStatus('✅ Готово! Загрузите изображение', 100);
+            setTimeout(() => {
+                document.getElementById('progress').classList.add('hidden');
+            }, 1000);
+        }
+    }
+    
+    if (typeof cv !== 'undefined' && cv.Mat) {
+        cvReady = true;
+        init();
+    }
+</script>
+<script src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCVReady()"></script>
+</body>
+</html>
