@@ -366,17 +366,10 @@
     }
     
     // Сегментация букв
-    function segmentLetters(grayMat, minArea = 300, maxArea = 8000) {
-        const binary = new cv.Mat();
-        cv.adaptiveThreshold(grayMat, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
-        
-        const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
-        const closed = new cv.Mat();
-        cv.morphologyEx(binary, closed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 2);
-        
+    function segmentLetters(grayMat, minArea = 450, maxArea = 7000) {
         let contours = new cv.MatVector();
         let hierarchy = new cv.Mat();
-        cv.findContours(closed, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+        cv.findContours(grayMat, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
         
         const letterBoxes = [];
         
@@ -401,10 +394,7 @@
         }
         
         letterBoxes.sort((a, b) => a.bbox.x - b.bbox.x);
-        
-        binary.delete();
-        kernel.delete();
-        closed.delete();
+   
         contours.delete();
         hierarchy.delete();
         
