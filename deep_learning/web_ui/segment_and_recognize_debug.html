@@ -421,36 +421,51 @@
     }
 
     function shouldMergeBoxes(box1, box2, iouThreshold) {
+        // box1 и box2 уже с padding 10 пикселей
         const interArea = calculateIntersection(box1, box2);
-
-        console.log('interArea', interArea);
         
-
-        if (interArea <= 0) return false;
+        console.log(`\n=== Проверка объединения (с учетом padding +10px) ===`);
+        console.log(`Box1 (с padding): x=${box1.x}, y=${box1.y}, w=${box1.width}, h=${box1.height}`);
+        console.log(`Box1 оригинал: x=${box1.originalRect?.x || box1.x+10}, y=${box1.originalRect?.y || box1.y+10}, w=${box1.originalRect?.width || box1.width-20}, h=${box1.originalRect?.height || box1.height-20}`);
+        console.log(`Box2 (с padding): x=${box2.x}, y=${box2.y}, w=${box2.width}, h=${box2.height}`);
+        console.log(`Box2 оригинал: x=${box2.originalRect?.x || box2.x+10}, y=${box2.originalRect?.y || box2.y+10}, w=${box2.originalRect?.width || box2.width-20}, h=${box2.originalRect?.height || box2.height-20}`);
+        console.log(`Intersection area (с padding): ${interArea}`);
+        
+        if (interArea <= 0) {
+            console.log(`❌ Нет пересечения даже с padding - НЕ ОБЪЕДИНЯЕМ`);
+            return false;
+        }
         
         const area1 = box1.width * box1.height;
         const area2 = box2.width * box2.height;
-        
-        // Если одна область значительно меньше другой (буква с палочкой/точкой)
         const ratio = Math.min(area1, area2) / Math.max(area1, area2);
         
-        console.log('ratio', ratio, 'box1', box1, 'box2', box2);
+        console.log(`Ratio smaller/larger (с padding): ${ratio.toFixed(3)}`);
         
-
         if (ratio < 0.5) {
-            // Одна область намного меньше - используем Intersection over min
             const minArea = Math.min(area1, area2);
             const iou_min = interArea / minArea;
-
-            console.log('iou_min', iou_min);
+            console.log(`IoU_min = ${iou_min.toFixed(3)} (порог: 0.003)`);
             
-
-            return iou_min > 0.003;  // Достаточно 40% пересечения с маленькой частью
+            if (iou_min > 0.003) {
+                console.log(`✅ ОБЪЕДИНЯЕМ`);
+                return true;
+            } else {
+                console.log(`❌ НЕ ОБЪЕДИНЯЕМ (пересечение составляет ${(iou_min * 100).toFixed(2)}% от меньшего бокса)`);
+                return false;
+            }
         } else {
-            // Области примерно равные - используем классический IoU
             const union = area1 + area2 - interArea;
             const iou = interArea / union;
-            return iou > iouThreshold;
+            console.log(`IoU = ${iou.toFixed(3)} (порог: ${iouThreshold})`);
+            
+            if (iou > iouThreshold) {
+                console.log(`✅ ОБЪЕДИНЯЕМ`);
+                return true;
+            } else {
+                console.log(`❌ НЕ ОБЪЕДИНЯЕМ`);
+                return false;
+            }
         }
     }
         
@@ -483,9 +498,24 @@
             const rect = cv.boundingRect(contour);
             const aspectRatio = rect.width / rect.height;
             
-            if (area >= minArea && area <= maxArea && aspectRatio >= 0.2 && aspectRatio <= 3.0) {
+
+            //  && aspectRatio >= 0.2 && aspectRatio <= 3.0
+
+            if (area >= minArea && area <= maxArea) {
                 filteredContours.push(contour);
-                boxes.push({...rect, id: i, area: area, aspectRatio: aspectRatio});
+                // Добавляем padding 10 пикселей к каждому контуру
+                const padding = 10;
+                const expandedRect = {
+                    x: Math.max(0, rect.x - padding),
+                    y: Math.max(0, rect.y - padding),
+                    width: rect.width + 2 * padding,
+                    height: rect.height + 2 * padding,
+                    id: i,
+                    area: area,
+                    aspectRatio: aspectRatio,
+                    originalRect: rect  // Сохраняем оригинал для отладки
+                };
+                boxes.push(expandedRect);
             }
         }
         
@@ -503,11 +533,7 @@
                 
                 let intersects = false;
                 for (const idx of group) {
-                    // console.log('iou', iou(boxes[idx], boxes[j]));
-                    // console.log('iou', shouldMergeBoxes(boxes[idx], boxes[j]));
-                    
                     if (shouldMergeBoxes(boxes[idx], boxes[j], iouThreshold)) {
-                    // if (iou(boxes[idx], boxes[j]) >= iouThreshold) {
                         intersects = true;
                         break;
                     }
@@ -524,25 +550,25 @@
             }
         }
         
-        const letterBoxes = [];
-        
-
-        console.log('=== Debug: Merge Groups ===');
+        console.log('=== Debug: Merge Groups with Padding ===');
         for (let g = 0; g < mergedGroups.length; g++) {
             const group = mergedGroups[g];
             console.log(`Group ${g}: объединяет боксы с индексами:`, group);
             for (const idx of group) {
                 console.log(`  Бокс ${idx}:`, boxes[idx]);
+                console.log(`    Оригинал без padding:`, boxes[idx].originalRect);
             }
         }
-                
-
+        
+        const letterBoxes = [];
+        
         for (const group of mergedGroups) {
             let minX = Infinity, minY = Infinity;
             let maxX = -Infinity, maxY = -Infinity;
             
+            // Используем оригинальные боксы (без padding) для объединения
             for (const idx of group) {
-                const box = boxes[idx];
+                const box = boxes[idx].originalRect;  // Используем оригинал
                 minX = Math.min(minX, box.x);
                 minY = Math.min(minY, box.y);
                 maxX = Math.max(maxX, box.x + box.width);
@@ -559,7 +585,11 @@
                 bbox: { x, y, w, h },
                 area: (maxX - minX) * (maxY - minY),
                 mergedCount: group.length,
-                info: group.map(idx => boxes[idx])
+                info: group.map(idx => boxes[idx].originalRect),  // Сохраняем оригиналы
+                debugInfo: {
+                    originalBoxes: group.map(idx => boxes[idx].originalRect),
+                    expandedBoxes: group.map(idx => ({x: boxes[idx].x, y: boxes[idx].y, w: boxes[idx].width, h: boxes[idx].height}))
+                }
             });
         }
         
@@ -570,8 +600,8 @@
         
         return letterBoxes;
     }
-    
-    function thickenLetterWithOpenCV(roiCanvas) {
+        
+    function thickenLetterWithOpenCV(roiCanvas, minContourArea = 150, erodeIterations = 3, dilateIterations = 1) {
         let mat = cv.imread(roiCanvas);
         let gray = new cv.Mat();
         cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY);
@@ -579,17 +609,65 @@
         let binary = new cv.Mat();
         cv.threshold(gray, binary, 127, 255, cv.THRESH_BINARY);
         
-        let kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(5, 5));
-        let dilated = new cv.Mat();
-        cv.erode(binary, dilated, kernel, new cv.Point(-1, -1), 1);
+        // Находим все контуры
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
         
-        cv.imshow(roiCanvas, dilated);
+        // Создаем маску для фильтрации
+        let mask = cv.Mat.zeros(binary.rows, binary.cols, cv.CV_8UC1);
+        let removedCount = 0;
         
+        for (let i = 0; i < contours.size(); i++) {
+            let contour = contours.get(i);
+            let area = cv.contourArea(contour);
+            
+            console.log('area', area);
+            
+
+            if (area >= minContourArea) {
+                // Оставляем только большие контуры
+                cv.drawContours(mask, contours, i, new cv.Scalar(255), -1);
+            } else {
+                removedCount++;
+                console.log(`Удален мелкий контур с площадью: ${area.toFixed(1)} (min: ${minContourArea})`);
+            }
+        }
+        
+        console.log(`Удалено ${removedCount} мелких контуров, оставлено ${contours.size() - removedCount}`);
+        
+        // Применяем маску
+        let filtered = new cv.Mat();
+        cv.bitwise_and(binary, mask, filtered);
+        
+        // Утолщаем букву
+        let kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+        let result = new cv.Mat();
+        
+        // Эрозия для удаления выступов
+        if (erodeIterations > 0) {
+            cv.erode(filtered, result, kernel, new cv.Point(-1, -1), erodeIterations);
+        } else {
+            result = filtered.clone();
+        }
+        
+        // Дилатация для утолщения
+        if (dilateIterations > 0) {
+            cv.dilate(result, result, kernel, new cv.Point(-1, -1), dilateIterations);
+        }
+        
+        cv.imshow(roiCanvas, result);
+        
+        // Очистка памяти
         mat.delete();
         gray.delete();
         binary.delete();
+        contours.delete();
+        hierarchy.delete();
+        mask.delete();
+        filtered.delete();
         kernel.delete();
-        dilated.delete();
+        result.delete();
         
         return roiCanvas;
     }
