@@ -36,6 +36,43 @@
             background: #f0f0ff;
             border-color: #764ba2;
         }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
         .image-container {
             display: flex;
             gap: 20px;
@@ -145,6 +182,12 @@
             color: white;
             text-align: right;
         }
+        .info-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -155,7 +198,20 @@
         
         <div class="upload-area" onclick="document.getElementById('fileInput').click()">
             📁 Нажмите или перетащите изображение сюда
-            <input type="file" id="fileInput" accept="image/*" style="display: none" onchange="loadImage(event)">
+            <input type="file" id="fileInput" accept="image/*" style="display: none" onchange="handleImageLoad(event)">
+        </div>
+        
+        <div class="button-group">
+            <button id="recognizeBtn" class="btn btn-primary" onclick="runRecognition()" disabled>
+                🔍 Запустить распознавание
+            </button>
+            <button class="btn btn-secondary" onclick="clearResults()">
+                🗑️ Очистить результаты
+            </button>
+        </div>
+        
+        <div class="info-text" id="imageInfo">
+            📌 Загрузите изображение, затем нажмите "Запустить распознавание"
         </div>
         
         <div id="status" class="loading">🔄 Загрузка OpenCV и модели...</div>
@@ -188,6 +244,9 @@
 <script>
     let session = null;
     let cvReady = false;
+    let currentImageMat = null;
+    let currentImageData = null;
+    let isProcessing = false;
     
     const classNames = ['Ё', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 
                         'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 
@@ -224,7 +283,6 @@
         return expValues.map(e => e / sumExp);
     }
     
-    // Функция поиска bounding box буквы
     function findBoundingBox(imageData, threshold=0.5) {
         let minX = 64, minY = 64, maxX = 0, maxY = 0;
         let hasPixel = false;
@@ -246,7 +304,6 @@
         return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
     
-    // Функция вырезания буквы с отступом
     function extractLetterWithMargin(imageData, margin=15) {
         const bbox = findBoundingBox(imageData);
         if (!bbox) return null;
@@ -266,16 +323,13 @@
         return { data: cropped, w: endX - startX, h: endY - startY };
     }
     
-    // Полная предобработка (как в рабочем примере с рисованием)
     function preprocessImage(roiCanvas) {
-        // 1. Получаем данные с canvas и изменяем размер до 64x64
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 64;
         tempCanvas.height = 64;
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.drawImage(roiCanvas, 0, 0, roiCanvas.width, roiCanvas.height, 0, 0, 64, 64);
         
-        // Получаем изображение в градациях серого
         let imageData = tempCtx.getImageData(0, 0, 64, 64);
         let grayData = new Array(64 * 64);
         
@@ -284,16 +338,9 @@
             grayData[i/4] = gray;
         }
         
-        // 2. Инвертируем (Invert)
-        // for (let i = 0; i < grayData.length; i++) {
-        //     grayData[i] = 1 - grayData[i];
-        // }
-        
-        // 3. ExtractLetterWithMargin
         const extracted = extractLetterWithMargin(grayData, 15);
         if (!extracted) return null;
         
-        // 4. SquarePad
         const size = Math.max(extracted.w, extracted.h);
         const squared = new Array(size * size).fill(1.0);
         
@@ -308,7 +355,6 @@
             }
         }
         
-        // 5. Resize обратно до 64x64
         const resized = new Array(64 * 64);
         const scale = size / 64;
         
@@ -324,7 +370,6 @@
             }
         }
         
-        // 6. Normalize (mean=0.5, std=0.5)
         const normalized = new Float32Array(1 * 1 * 64 * 64);
         for (let i = 0; i < resized.length; i++) {
             normalized[i] = (resized[i] - 0.5) / 0.5;
@@ -333,7 +378,6 @@
         return { tensor: new ort.Tensor('float32', normalized, [1, 1, 64, 64]), finalImage: resized };
     }
     
-    // Преобразование Mat в canvas (через cv.imshow)
     function matToCanvas(mat) {
         const canvas = document.createElement('canvas');
         canvas.width = mat.cols;
@@ -346,7 +390,6 @@
         return canvas;
     }
     
-    // Визуализация финального изображения (после предобработки)
     function visualizeFinalImage(finalImageData) {
         const canvas = document.createElement('canvas');
         canvas.width = 64;
@@ -364,65 +407,184 @@
         ctx.putImageData(imageData, 0, 0);
         return canvas;
     }
-    
-    // Сегментация букв
-    function segmentLetters(grayMat, minArea = 450, maxArea = 7000) {
+
+    // Функция вычисления площади пересечения
+    function calculateIntersection(box1, box2) {
+        const x1 = Math.max(box1.x, box2.x);
+        const y1 = Math.max(box1.y, box2.y);
+        const x2 = Math.min(box1.x + box1.width, box2.x + box2.width);
+        const y2 = Math.min(box1.y + box1.height, box2.y + box2.height);
+        
+        if (x2 < x1 || y2 < y1) return 0;
+        
+        return (x2 - x1) * (y2 - y1);
+    }
+
+    function shouldMergeBoxes(box1, box2, iouThreshold) {
+        const interArea = calculateIntersection(box1, box2);
+
+        console.log('interArea', interArea);
+        
+
+        if (interArea <= 0) return false;
+        
+        const area1 = box1.width * box1.height;
+        const area2 = box2.width * box2.height;
+        
+        // Если одна область значительно меньше другой (буква с палочкой/точкой)
+        const ratio = Math.min(area1, area2) / Math.max(area1, area2);
+        
+        console.log('ratio', ratio, 'box1', box1, 'box2', box2);
+        
+
+        if (ratio < 0.5) {
+            // Одна область намного меньше - используем Intersection over min
+            const minArea = Math.min(area1, area2);
+            const iou_min = interArea / minArea;
+
+            console.log('iou_min', iou_min);
+            
+
+            return iou_min > 0.003;  // Достаточно 40% пересечения с маленькой частью
+        } else {
+            // Области примерно равные - используем классический IoU
+            const union = area1 + area2 - interArea;
+            const iou = interArea / union;
+            return iou > iouThreshold;
+        }
+    }
+        
+    function iou(box1, box2) {
+        const x1 = Math.max(box1.x, box2.x);
+        const y1 = Math.max(box1.y, box2.y);
+        const x2 = Math.min(box1.x + box1.width, box2.x + box2.width);
+        const y2 = Math.min(box1.y + box1.height, box2.y + box2.height);
+        
+        if (x2 < x1 || y2 < y1) return 0;
+        
+        const interArea = (x2 - x1) * (y2 - y1);
+        const area1 = box1.width * box1.height;
+        const area2 = box2.width * box2.height;
+        
+        return interArea / (area1 + area2 - interArea);
+    }
+
+    function segmentLettersWithContourMerge(grayMat, minArea = 450, maxArea = 7000, iouThreshold = 0.1) {
         let contours = new cv.MatVector();
         let hierarchy = new cv.Mat();
         cv.findContours(grayMat, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
         
-        const letterBoxes = [];
+        const filteredContours = [];
+        const boxes = [];
         
         for (let i = 0; i < contours.size(); i++) {
             const contour = contours.get(i);
             const area = cv.contourArea(contour);
-            
-            if (area < minArea || area > maxArea) continue;
-            
             const rect = cv.boundingRect(contour);
             const aspectRatio = rect.width / rect.height;
             
-            if (aspectRatio < 0.2 || aspectRatio > 3.0) continue;
+            if (area >= minArea && area <= maxArea && aspectRatio >= 0.2 && aspectRatio <= 3.0) {
+                filteredContours.push(contour);
+                boxes.push({...rect, id: i, area: area, aspectRatio: aspectRatio});
+            }
+        }
+        
+        const mergedGroups = [];
+        const used = new Array(boxes.length).fill(false);
+        
+        for (let i = 0; i < boxes.length; i++) {
+            if (used[i]) continue;
+            
+            const group = [i];
+            used[i] = true;
+            
+            for (let j = 0; j < boxes.length; j++) {
+                if (used[j]) continue;
+                
+                let intersects = false;
+                for (const idx of group) {
+                    // console.log('iou', iou(boxes[idx], boxes[j]));
+                    // console.log('iou', shouldMergeBoxes(boxes[idx], boxes[j]));
+                    
+                    if (shouldMergeBoxes(boxes[idx], boxes[j], iouThreshold)) {
+                    // if (iou(boxes[idx], boxes[j]) >= iouThreshold) {
+                        intersects = true;
+                        break;
+                    }
+                }
+                
+                if (intersects) {
+                    group.push(j);
+                    used[j] = true;
+                }
+            }
+            
+            if (group.length > 0) {
+                mergedGroups.push(group);
+            }
+        }
+        
+        const letterBoxes = [];
+        
+
+        console.log('=== Debug: Merge Groups ===');
+        for (let g = 0; g < mergedGroups.length; g++) {
+            const group = mergedGroups[g];
+            console.log(`Group ${g}: объединяет боксы с индексами:`, group);
+            for (const idx of group) {
+                console.log(`  Бокс ${idx}:`, boxes[idx]);
+            }
+        }
+                
+
+        for (const group of mergedGroups) {
+            let minX = Infinity, minY = Infinity;
+            let maxX = -Infinity, maxY = -Infinity;
+            
+            for (const idx of group) {
+                const box = boxes[idx];
+                minX = Math.min(minX, box.x);
+                minY = Math.min(minY, box.y);
+                maxX = Math.max(maxX, box.x + box.width);
+                maxY = Math.max(maxY, box.y + box.height);
+            }
             
             const padding = 10;
-            const x = Math.max(0, rect.x - padding);
-            const y = Math.max(0, rect.y - padding);
-            const w = Math.min(grayMat.cols - x, rect.width + 2 * padding);
-            const h = Math.min(grayMat.rows - y, rect.height + 2 * padding);
+            const x = Math.max(0, minX - padding);
+            const y = Math.max(0, minY - padding);
+            const w = Math.min(grayMat.cols - x, (maxX - minX) + 2 * padding);
+            const h = Math.min(grayMat.rows - y, (maxY - minY) + 2 * padding);
             
-            letterBoxes.push({ bbox: { x, y, w, h }, area: area });
+            letterBoxes.push({
+                bbox: { x, y, w, h },
+                area: (maxX - minX) * (maxY - minY),
+                mergedCount: group.length,
+                info: group.map(idx => boxes[idx])
+            });
         }
         
         letterBoxes.sort((a, b) => a.bbox.x - b.bbox.x);
-   
+        
         contours.delete();
         hierarchy.delete();
         
         return letterBoxes;
     }
-
-    // Утолщение буквы через OpenCV
+    
     function thickenLetterWithOpenCV(roiCanvas) {
-        // Конвертируем canvas в Mat
         let mat = cv.imread(roiCanvas);
         let gray = new cv.Mat();
         cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY);
         
-        // Бинаризация
         let binary = new cv.Mat();
         cv.threshold(gray, binary, 127, 255, cv.THRESH_BINARY);
         
-        // Морфологическое расширение (утолщение)
         let kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(5, 5));
         let dilated = new cv.Mat();
-        // cv.dilate(binary, dilated, kernel, new cv.Point(-1, -1), 2); // iterations=2 для большей жирности
-
-        cv.erode(binary, dilated, kernel, new cv.Point(-1, -1), 1); // iterations=2 для большей жирности
+        cv.erode(binary, dilated, kernel, new cv.Point(-1, -1), 1);
         
-        // Конвертируем обратно в canvas
         cv.imshow(roiCanvas, dilated);
         
-        // Очистка
         mat.delete();
         gray.delete();
         binary.delete();
@@ -431,76 +593,19 @@
         
         return roiCanvas;
     }
-
-    function preprocessImageOpenCV(imageMat) {
-        let gray;
-        
-        // 1. Конвертируем в grayscale если нужно
-        if (imageMat.channels() === 3) {
-            gray = new cv.Mat();
-            cv.cvtColor(imageMat, gray, cv.COLOR_RGBA2GRAY);
-        } else {
-            gray = imageMat.clone();
-        }
-        
-        // 2. Размытие по Гауссу
-        let blurred = new cv.Mat();
-        cv.GaussianBlur(imageMat, blurred, new cv.Size(5, 5), 0);
-        // cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-        
-        // 3. Адаптивная бинаризация
-        let binary = new cv.Mat();
-        cv.adaptiveThreshold(
-            blurred, binary, 255, 
-            cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv.THRESH_BINARY_INV, 11, 2
-        );
-        
-        // 4. Морфологические операции
-        let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
-        
-        let closed = new cv.Mat();
-        cv.morphologyEx(binary, closed, cv.MORPH_CLOSE, kernel);
-        
-        let opened = new cv.Mat();
-        cv.morphologyEx(closed, opened, cv.MORPH_OPEN, kernel);
-        
-        let dilated = new cv.Mat();
-        cv.dilate(opened, dilated, kernel, new cv.Point(-1, -1), 2);
-        
-        // ✅ ОЧИЩАЕМ ВСЕ ВРЕМЕННЫЕ Mat'ы
-        blurred.delete();
-        // binary.delete();
-        kernel.delete();
-        closed.delete();
-        opened.delete();
-        // dilated.delete(); // НЕ УДАЛЯЕМ - он нужен для возврата
-        
-        // ✅ ВОЗВРАЩАЕМ gray И dilated (НЕ УДАЛЯЙТЕ ИХ)
-        return { gray: gray, binary: dilated };
-    }
-
-
+    
     async function recognizeImage(imageMat) {
         updateStatus('Обработка изображения...', 20);
         
         let gray = new cv.Mat();
         cv.cvtColor(imageMat, gray, cv.COLOR_RGBA2GRAY);
-
-        // 2. Размытие по Гауссу
+        
         let blurred = new cv.Mat();
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
         
-        // 3. Адаптивная бинаризация
         let binary = new cv.Mat();
-        cv.adaptiveThreshold(
-            blurred, binary, 255, 
-            cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv.THRESH_BINARY_INV, 11, 2
-        );
-
-
-        // 4. Морфологические операции
+        cv.adaptiveThreshold(blurred, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
+        
         let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
         
         let closed = new cv.Mat();
@@ -511,22 +616,19 @@
         
         let dilated = new cv.Mat();
         cv.dilate(opened, dilated, kernel, new cv.Point(-1, -1), 2);
-
-
-        console.log('before', gray.channels());
-        debugger
         
-        // const { gray, binary } = preprocessImageOpenCV(imageMat)
-        
-        console.log('after');
-
         updateStatus('Поиск букв на изображении...', 40);
-        const letterBoxes = segmentLetters(dilated);
+        const letterBoxes = segmentLettersWithContourMerge(dilated);
         
         if (letterBoxes.length === 0) {
             updateStatus('⚠️ Буквы не найдены.', 100);
             gray.delete();
+            blurred.delete();
             binary.delete();
+            kernel.delete();
+            closed.delete();
+            opened.delete();
+            dilated.delete();
             return [];
         }
         
@@ -540,23 +642,15 @@
             const box = letterBoxes[i];
             const { x, y, w, h } = box.bbox;
             
-            console.log(`Буква ${i+1}: (${x},${y}) ${w}x${h}`);
-            
-            // Вырезаем область
             const letterRoi = dilated.roi(new cv.Rect(x, y, w, h));
-            
-            // Создаем canvas из ROI (через cv.imshow)
             const roiCanvas = matToCanvas(letterRoi);
             roiCanvas.style.maxWidth = '100px';
             roiCanvas.style.maxHeight = '100px';
             roiCanvas.style.border = '1px solid #667eea';
             roiCanvas.style.margin = '5px';
-
-            console.log('thickenLetterWithOpenCV');
             
             thickenLetterWithOpenCV(roiCanvas);
             
-            // Применяем предобработку (как в рабочем примере с рисованием)
             const processed = preprocessImage(roiCanvas);
             
             if (!processed) {
@@ -565,12 +659,10 @@
                 continue;
             }
             
-            // Распознаем
             const results_inf = await session.run({ input: processed.tensor });
             const logits = results_inf.output.data;
             const probabilities = softmax(Array.from(logits));
             
-            // Получаем топ-3
             const top3 = probabilities
                 .map((p, idx) => ({ p, idx }))
                 .sort((a, b) => b.p - a.p)
@@ -579,14 +671,12 @@
             const topLetter = classNames[top3[0].idx];
             const topConfidence = top3[0].p * 100;
             
-            // Визуализируем финальное изображение (после предобработки)
             const finalCanvas = visualizeFinalImage(processed.finalImage);
             finalCanvas.style.maxWidth = '100px';
             finalCanvas.style.maxHeight = '100px';
             finalCanvas.style.border = '1px solid #ff9800';
             finalCanvas.style.margin = '5px';
             
-            // Формируем HTML для топ-3
             let top3Html = '<div style="margin-top: 8px;"><strong>Топ-3:</strong></div>';
             for (let t of top3) {
                 const letter = classNames[t.idx];
@@ -602,7 +692,6 @@
                 `;
             }
             
-            // Добавляем в отладку
             if (debugDiv) {
                 const letterDebug = document.createElement('div');
                 letterDebug.className = 'letter-debug';
@@ -624,9 +713,11 @@
             
             results.push({
                 index: i,
+                info: box.info,
                 bbox: box.bbox,
                 letter: topLetter,
                 confidence: topConfidence,
+                mergedCount: box.mergedCount,  // Добавляем информацию об объединении
                 top3: top3.map(t => ({ letter: classNames[t.idx], confidence: t.p * 100 }))
             });
             
@@ -635,16 +726,14 @@
             
             letterRoi.delete();
         }
-    
+        
         gray.delete();
-        binary.delete();
-
-  
         blurred.delete();
+        binary.delete();
         kernel.delete();
         closed.delete();
         opened.delete();
-        dilated.delete();        
+        dilated.delete();
         
         if (debugDiv && results.length > 0) {
             document.getElementById('debugCard').style.display = 'block';
@@ -652,7 +741,7 @@
         
         return results;
     }
-    
+        
     function drawResults(originalMat, results) {
         const canvas = document.getElementById('resultCanvas');
         canvas.width = originalMat.cols;
@@ -665,20 +754,50 @@
         for (const res of results) {
             const { x, y, w, h } = res.bbox;
             
-            ctx.strokeStyle = '#4CAF50';
-            ctx.lineWidth = 3;
+            // Разные цвета для наглядности
+            if (res.mergedCount && res.mergedCount > 1) {
+                ctx.strokeStyle = '#FF9800'; // Оранжевый - объединенные буквы
+                ctx.lineWidth = 3;
+            } else {
+                ctx.strokeStyle = '#4CAF50'; // Зеленый - обычные
+                ctx.lineWidth = 2;
+            }
             ctx.strokeRect(x, y, w, h);
             
-            ctx.fillStyle = '#4CAF50';
-            ctx.fillRect(x, y - 25, Math.min(w, 60), 22);
+            // Фон для текста
+            ctx.fillStyle = res.mergedCount && res.mergedCount > 1 ? '#FF9800' : '#4CAF50';
+            ctx.fillRect(x, y - 35, Math.min(w + 20, 100), 32);
             
+            // Номер буквы (визуально видно, какой бокс на изображении)
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.font = 'bold 11px Arial';
+            // ctx.fillText(`№${res.index + 1}`, x + 5, y - 28);
+            ctx.fillText(`№${res.index + 1}`, x + 5, y + h + 12);
+            
+            // Распознанная буква
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 16px Arial';
-            ctx.fillText(res.letter, x + 5, y - 5);
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText(res.letter, x + 5, y - 8);
             
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx.font = '12px Arial';
+            // Информация об объединении
+            if (res.mergedCount && res.mergedCount > 1) {
+                ctx.fillStyle = '#FF9800';
+                ctx.font = 'bold 10px Arial';
+                // ctx.fillText(`+${res.mergedCount}`, x + w - 25, y - 28);
+                 ctx.fillText(`+${res.mergedCount}`, x + w - 25, y + h + 12);
+            }
+            
+            // Процент уверенности
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.font = 'bold 11px Arial';
+            // ctx.fillText(`${res.confidence.toFixed(0)}%`, x + 5, y + h - 5);
             ctx.fillText(`${res.confidence.toFixed(0)}%`, x + 5, y + h - 5);
+            
+            // Размеры бокса для отладки
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.font = '9px Arial';
+            // ctx.fillText(`${w}x${h}`, x + w - 30, y + h - 5);
+            ctx.fillText(`${w}x${h}`, x + w - 30, y + h - 5);
         }
     }
     
@@ -697,10 +816,10 @@
         }
         lettersHtml += '</div>';
         
-        // Добавляем топ-3 для всего текста
         lettersHtml += '<div style="margin-top: 20px;"><strong>📊 Детали по буквам:</strong></div>';
         for (const res of results) {
             lettersHtml += `<div style="margin-top: 10px;"><strong>Буква ${res.index + 1}:</strong> ${res.letter} (${res.confidence.toFixed(1)}%)`;
+            lettersHtml += `<div style="margin-top: 10px;"><strong>${JSON.stringify(res)}</strong> ${res.letter} (${res.confidence.toFixed(1)}%)`;
             lettersHtml += `<div style="font-size: 12px; color: #666;">Топ-3: `;
             for (let i = 0; i < res.top3.length; i++) {
                 lettersHtml += `${res.top3[i].letter} (${res.top3[i].confidence.toFixed(1)}%)`;
@@ -726,17 +845,89 @@
             }
         }
     }
+    
+    function clearResults() {
+        document.getElementById('resultCard').style.display = 'none';
+        document.getElementById('debugCard').style.display = 'none';
+        const resultCanvas = document.getElementById('resultCanvas');
+        const ctx = resultCanvas.getContext('2d');
+        ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+        document.getElementById('imageInfo').innerHTML = '📌 Загрузите изображение, затем нажмите "Запустить распознавание"';
+        document.getElementById('imageInfo').style.color = '#666';
         
-    async function loadImage(event) {
-        console.log('loadImage');
+        if (currentImageMat && !currentImageMat.isDeleted()) {
+            const originalCanvas = document.getElementById('originalCanvas');
+            const ctxOrig = originalCanvas.getContext('2d');
+            ctxOrig.drawImage(currentImageData, 0, 0);
+        }
+    }
+
+    function runRecognition() {
+        console.log('Проверка перед асинхронным вызовом');
+    runRecognition2();
+    }
+    
+    async function runRecognition2() {
+        if (!currentImageMat || currentImageMat.isDeleted()) {
+            alert('Пожалуйста, сначала загрузите изображение');
+            return;
+        }
+        
+        if (!session) {
+            alert('Модель еще не загружена. Подождите...');
+            return;
+        }
         
         if (!cvReady) {
             alert('OpenCV еще не загружен. Подождите...');
             return;
         }
         
-        if (!session) {
-            alert('Модель еще не загружена. Подождите...');
+        if (isProcessing) {
+            alert('Распознавание уже выполняется. Подождите...');
+            return;
+        }
+        
+        isProcessing = true;
+        const recognizeBtn = document.getElementById('recognizeBtn');
+        recognizeBtn.disabled = true;
+        recognizeBtn.textContent = '⏳ Распознавание...';
+        
+        try {
+            const results = await recognizeImage(currentImageMat);
+            
+            if (results.length > 0) {
+                drawResults(currentImageMat, results);
+                displayTextResults(results);
+                updateStatus(`✅ Распознано ${results.length} букв`, 100);
+                document.getElementById('imageInfo').innerHTML = `✅ Распознано ${results.length} букв`;
+                document.getElementById('imageInfo').style.color = '#4CAF50';
+            } else {
+                updateStatus('❌ Буквы не найдены', 100);
+                document.getElementById('resultCard').style.display = 'none';
+                document.getElementById('debugCard').style.display = 'none';
+                document.getElementById('imageInfo').innerHTML = '❌ Буквы не найдены. Попробуйте другое изображение.';
+                document.getElementById('imageInfo').style.color = '#f44336';
+            }
+        } catch (err) {
+            console.error('Ошибка при распознавании:', err);
+            updateStatus(`❌ Ошибка распознавания: ${err.message}`, 0);
+            document.getElementById('resultCard').style.display = 'none';
+            document.getElementById('debugCard').style.display = 'none';
+            document.getElementById('imageInfo').innerHTML = `❌ Ошибка: ${err.message}`;
+            document.getElementById('imageInfo').style.color = '#f44336';
+        } finally {
+            isProcessing = false;
+            recognizeBtn.disabled = false;
+            recognizeBtn.textContent = '🔍 Запустить распознавание';
+        }
+    }
+    
+    async function handleImageLoad(event) {
+        console.log('handleImageLoad');
+        
+        if (!cvReady) {
+            alert('OpenCV еще не загружен. Подождите...');
             return;
         }
         
@@ -746,42 +937,47 @@
         const img = new Image();
         img.onload = async () => {
             try {
-                updateStatus('Обработка...', 0);
+                updateStatus('Загрузка изображения...', 0);
                 
                 const originalCanvas = document.getElementById('originalCanvas');
                 originalCanvas.width = img.width;
                 originalCanvas.height = img.height;
                 const ctx = originalCanvas.getContext('2d');
                 ctx.drawImage(img, 0, 0);
+                originalCanvas.style.display = 'block';
                 
-                let src = null;
-                try {
-                    src = cv.imread(originalCanvas);
-                    const results = await recognizeImage(src);
-                    
-                    if (results.length > 0) {
-                        drawResults(src, results);
-                        displayTextResults(results);
-                        updateStatus(`✅ Распознано ${results.length} букв`, 100);
-                    } else {
-                        updateStatus('❌ Буквы не найдены', 100);
-                        document.getElementById('resultCard').style.display = 'none';
-                        document.getElementById('debugCard').style.display = 'none';
-                    }
-                } catch (err) {
-                    console.error('Ошибка при распознавании:', err);
-                    updateStatus(`❌ Ошибка распознавания: ${err.message}`, 0);
-                    document.getElementById('resultCard').style.display = 'none';
-                    document.getElementById('debugCard').style.display = 'none';
-                } finally {
-                    if (src && !src.isDeleted()) {
-                        src.delete();
-                    }
+                currentImageData = img;
+                
+                if (currentImageMat && !currentImageMat.isDeleted()) {
+                    currentImageMat.delete();
                 }
+                
+                currentImageMat = cv.imread(originalCanvas);
+                
+                const resultCanvas = document.getElementById('resultCanvas');
+                resultCanvas.width = currentImageMat.cols;
+                resultCanvas.height = currentImageMat.rows;
+                const resultCtx = resultCanvas.getContext('2d');
+                resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+                
+                document.getElementById('resultCard').style.display = 'none';
+                document.getElementById('debugCard').style.display = 'none';
+                document.getElementById('imageInfo').innerHTML = '✅ Изображение загружено. Нажмите "Запустить распознавание"';
+                document.getElementById('imageInfo').style.color = '#4CAF50';
+                
+                const recognizeBtn = document.getElementById('recognizeBtn');
+                recognizeBtn.disabled = false;
+                
+                updateStatus('✅ Изображение загружено', 100);
+                setTimeout(() => {
+                    document.getElementById('progress').classList.add('hidden');
+                }, 500);
                 
             } catch (err) {
                 console.error('Ошибка при загрузке изображения:', err);
                 updateStatus(`❌ Ошибка: ${err.message}`, 0);
+                document.getElementById('imageInfo').innerHTML = `❌ Ошибка загрузки: ${err.message}`;
+                document.getElementById('imageInfo').style.color = '#f44336';
             }
         };
         img.src = URL.createObjectURL(file);
@@ -804,13 +1000,12 @@
             const dataTransfer = new DataTransfer();
             dataTransfer.items.add(file);
             input.files = dataTransfer.files;
-            loadImage({ target: input });
+            handleImageLoad({ target: input });
         }
     });
     
     async function init() {
         console.log('init');
-
         updateStatus('Загрузка модели...', 10);
         const modelLoaded = await loadModel();
         if (modelLoaded && cvReady) {
@@ -824,11 +1019,7 @@
     if (typeof cv !== 'undefined' && cv.Mat) {
         cvReady = true;
         init();
-        console.log('001');
-        
     }
-
-    console.log('002');
 </script>
 <script src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCVReady()"></script>
 </body>
