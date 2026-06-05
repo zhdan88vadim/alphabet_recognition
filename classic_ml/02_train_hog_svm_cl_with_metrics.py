@@ -312,7 +312,7 @@ def create_train_val_test_datasets(train_root, val_root, test_root):
     # Transform for validation and test (without augmentation)
     val_test_transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
-        ExtractLetterWithMargin(margin=4, fill_white=True),
+        ExtractLetterWithMargin(margin=15, fill_white=True),
         SquarePad(fill_white=True),
         transforms.Resize((config['data']['image_size'], config['data']['image_size'])),
         Invert(),
