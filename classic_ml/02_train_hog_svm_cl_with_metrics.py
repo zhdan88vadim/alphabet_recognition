@@ -1,11 +1,11 @@
 import os
 import mlflow
 import mlflow.sklearn
-from augmentation import AdaptiveAugmentationBuilder, CenterDigitsTransform, ExtractLetterWithMargin, Invert, SquarePad
+from augmentation import AdaptiveAugmentationBuilder, ExtractLetterWithMargin, Invert, SquarePad
 import cv2
 import numpy as np
 from sklearn import svm
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_recall_fscore_support
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -26,6 +26,7 @@ import argparse
 warnings.filterwarnings('ignore')
 
 DATA_ROOT = "../dataset"
+# DATA_ROOT = "../dataset_val"
 DATA_VAL_ROOT = "../dataset_val"
 # DATA_ROOT = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test_unique_only/"
 
@@ -316,9 +317,14 @@ def create_train_val_test_datasets(train_root, val_root, test_root):
         SquarePad(fill_white=True),
         transforms.Resize((config['data']['image_size'], config['data']['image_size'])),
         Invert(),
-        transforms.Grayscale(num_output_channels=1),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
+        # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
+        # transforms.Grayscale(num_output_channels=1),
+        # transforms.ToTensor(),
+
+        # HOG с исходными 0-255 - правильный масштаб градиентов
+        # HOG с исходными 0-255 - правильный масштаб градиентов
+        # HOG с исходными 0-255 - правильный масштаб градиентов
+        # transforms.Normalize(mean=[0.5], std=[0.5])
     ])
     
     # Загружаем ТРИ РАЗНЫХ датасета из ТРЕХ РАЗНЫХ папок
@@ -364,9 +370,14 @@ def dataset_to_numpy(dataset):
     labels = []
     
     for i in range(len(dataset)):
-        img_tensor, label = dataset[i]
-        img_np = img_tensor.squeeze().cpu().numpy()
-        img_np = (img_np * 255).astype(np.uint8)
+        img, label = dataset[i]
+
+        # убрал toTensor и уже не нужно убирать размернсть которую он добавил
+
+        # img_np = img_tensor.squeeze().cpu().numpy()
+        # img_np = (img_np * 255).astype(np.uint8)
+
+        img_np = np.array(img)
         
         # INVERT FOR HOG
         # img_np = cv2.bitwise_not(img_np)
@@ -380,24 +391,29 @@ def dataset_to_numpy(dataset):
 # 3. TRAIN HOG + SVM CLASSIFIER
 # ============================================
 
-def train_hog_svm(X_train, y_train, use_pca=True, pca_components=100):
+def train_hog_svm(X_train, y_train, use_pca=True, pca_components=50):
     """
     Train SVM classifier on HOG features.
     """
     pipeline = Pipeline([
         ('scaler', StandardScaler()),
-        ('pca', PCA(n_components=min(pca_components, X_train.shape[1]))),
-        ('svm', svm.SVC(C=10, gamma=0.001, kernel='rbf', probability=True, random_state=42, class_weight='balanced'))
+        ('pca', PCA(n_components=pca_components)),
+        ('svm', svm.SVC(C=1, gamma='scale', kernel='rbf', probability=True, random_state=42, class_weight='balanced'))
     ])
     
     cv_score_correct = cross_val_score(pipeline, X_train, y_train, cv=3, n_jobs=-1).mean()
     print(f"   Baseline CV accuracy: {cv_score_correct:.4f} ({cv_score_correct*100:.2f}%)")
 
     param_grid = {
-        'svm__C': [10],
-        'svm__gamma': [0.001],
+        'svm__C': [2],
+        'svm__gamma': [0.0005],
         'svm__kernel': ['rbf']
     }
+    # param_grid = {
+    #     'svm__C': [0.1, 0.5, 1.0, 2.0, 10],
+    #     'svm__gamma': [0.0001, 0.0005, 0.001, 'scale'],
+    #     'svm__kernel': ['rbf']
+    # }
     
     grid_search = GridSearchCV(
         pipeline, 
@@ -405,11 +421,55 @@ def train_hog_svm(X_train, y_train, use_pca=True, pca_components=100):
         cv=3, 
         scoring='accuracy',
         n_jobs=-1,
-        verbose=1
+        verbose=2
     )
     
     print("   Performing grid search...")
+  
+    print(f"\n{'='*60}")
+    print(f"🔍 GRID SEARCH (20 combinations × 3 folds = 60 fits)")
+    print(f"{'='*60}")
+    
+    import time
+    start_time = time.time()
     grid_search.fit(X_train, y_train)
+    elapsed = time.time() - start_time
+    
+    # Результаты
+    print(f"\n{'='*60}")
+    print(f"✅ GRID SEARCH RESULTS")
+    print(f"{'='*60}")
+    print(f"   Best parameters: {grid_search.best_params_}")
+    print(f"   Best CV accuracy: {grid_search.best_score_:.4f} ({grid_search.best_score_*100:.2f}%)")
+    print(f"   Time taken: {elapsed:.1f} seconds")
+    
+    # Дополнительная статистика
+    print(f"\n📈 TOP 5 BEST MODELS:")
+    results = zip(grid_search.cv_results_['params'], 
+                  grid_search.cv_results_['mean_test_score'],
+                  grid_search.cv_results_['std_test_score'])
+    
+    sorted_results = sorted(results, key=lambda x: x[1], reverse=True)[:5]
+    for i, (params, mean_score, std_score) in enumerate(sorted_results, 1):
+        print(f"   {i}. C={params['svm__C']:>3}, gamma={str(params['svm__gamma']):>6}: "
+              f"acc={mean_score:.4f} (±{std_score:.4f})")
+    
+    # PCA информация
+    best_pipeline = grid_search.best_estimator_
+    if use_pca and 'pca' in best_pipeline.named_steps:
+        pca_step = best_pipeline.named_steps['pca']
+        if hasattr(pca_step, 'explained_variance_ratio_'):
+            explained_var = pca_step.explained_variance_ratio_.sum()
+            n_components = pca_step.n_components_
+            print(f"\n📉 PCA INFO:")
+            print(f"   Components: {n_components}")
+            print(f"   Explained variance: {explained_var:.2%}")
+            
+            # Дисперсия по компонентам
+            cumsum = np.cumsum(pca_step.explained_variance_ratio_)
+            print(f"   Components for 95% variance: {np.argmax(cumsum >= 0.95) + 1}")
+
+
     
     print(f"   Best parameters: {grid_search.best_params_}")
     print(f"   Best CV accuracy: {grid_search.best_score_:.4f} ({grid_search.best_score_*100:.2f}%)")
@@ -1049,8 +1109,8 @@ def main():
                    filepath='hog_svm.pkl')
         
         # Логируем модель как артефакт
-        mlflow.log_artifact('hog_svm.pkl')
-        print("   ✓ Модель залогирована как артефакт")
+        # mlflow.log_artifact('hog_svm.pkl')
+        # print("   ✓ Модель залогирована как артефакт")
 
         # ============================================
         # Visualize class distances

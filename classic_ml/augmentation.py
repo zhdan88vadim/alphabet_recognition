@@ -144,7 +144,7 @@ class AdaptiveAugmentationBuilder:
 
         return transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
-            ExtractLetterWithMargin(margin=4, fill_white=True),
+            ExtractLetterWithMargin(margin=15, fill_white=True),
             # CenterDigitsTransform(padding=10, fill_value=255),
             SquarePad(fill_white=True),
             # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
@@ -152,11 +152,13 @@ class AdaptiveAugmentationBuilder:
             SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
             
             Invert(),
-            # transforms.Pad(8, fill=0),
+
+
+            transforms.Pad(8, fill=0),
             # ExtractLetterWithMargin(margin=4, fill_white=True),
             # transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
             # transforms.RandomResizedCrop(size=image_size, scale=(0.9, 1.1), ratio=(1, 1)),
-            # transforms.RandomRotation(degrees=(-10, 10)),
+            transforms.RandomRotation(degrees=(-10, 10)),
             # AddRandomBlobs(p=0.5, num_blobs=(3, 5), 
             #               blob_size=params['blob_size'], intensity=(250, 255)),
             # AddRandomBlobs(p=0.5, num_blobs=(3, 5),
@@ -167,13 +169,13 @@ class AdaptiveAugmentationBuilder:
             # RandomBleed(p=0.5, blur_radius=params['blur_radius']),
             # RandomMissingPart(p=0.3, cut_size=params['cut_size']),
        
-            # transforms.RandomAffine(
-            #     degrees=params['degrees'],
-            #     translate=params['translate'],
-            #     shear=params['shear'],
-            #     scale=(0.6, 1)
-            # ),
-            # transforms.CenterCrop((image_size)),
+            transforms.RandomAffine(
+                degrees=params['degrees'],
+                translate=params['translate'],
+                shear=params['shear'],
+                scale=(0.6, 1)
+            ),
+            transforms.CenterCrop((image_size)),
             # DO NOT NEED INVERT FOR HOG
             # DO NOT NEED INVERT FOR HOG
             # DO NOT NEED INVERT FOR HOG
@@ -182,11 +184,11 @@ class AdaptiveAugmentationBuilder:
             # TODO: Is it needed?
             # transforms.Lambda(lambda x: x.convert('RGB') if x.mode != 'RGB' else x),
 
-            transforms.Grayscale(num_output_channels=1),
-            transforms.ToTensor(),
+            # transforms.Grayscale(num_output_channels=1),
+            # transforms.ToTensor(),
             # AddGaussianNoise(), 
             # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])            
-            transforms.Normalize(mean=[0.5], std=[0.5])
+            # transforms.Normalize(mean=[0.5], std=[0.5])
         ])
     
     # def build_val_transform(self, image_size):

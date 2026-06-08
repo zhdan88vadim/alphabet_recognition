@@ -61,17 +61,21 @@ def load_test_data(data_root):
     # Same transform as validation/test in training
     transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
-        ExtractLetterWithMargin(margin=4, fill_white=True),
+        ExtractLetterWithMargin(margin=15, fill_white=True),
         SquarePad(fill_white=True),
         transforms.Resize((64, 64)),
+        
+        
         # ONLY FOR BOLD SYMBOLS
         # ONLY FOR BOLD SYMBOLS
         # ONLY FOR BOLD SYMBOLS
-        SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
+        # SimpleThinOrThicken(p=1, strength='light', is_black_symbol_on_white_background=True),
+
+
         Invert(),
-        transforms.Grayscale(num_output_channels=1),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
+        # transforms.Grayscale(num_output_channels=1),
+        # transforms.ToTensor(),
+        # transforms.Normalize(mean=[0.5], std=[0.5])
     ])
     
     X, y = [], []
@@ -87,10 +91,14 @@ def load_test_data(data_root):
                 # Apply same preprocessing
                 img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
                 img_tensor = transform(img_pil)
-                img_np = img_tensor.squeeze().cpu().numpy()
-                # Denormalize to 0-255 for HOG
-                img_np = ((img_np * 0.5 + 0.5) * 255).astype(np.uint8)
+
+
+                # img_np = img_tensor.squeeze().cpu().numpy()
+                # # Denormalize to 0-255 for HOG
+                # img_np = ((img_np * 0.5 + 0.5) * 255).astype(np.uint8)
                 
+                img_np = np.array(img_tensor)
+
                 X.append(img_np)
                 y.append(class_to_idx[class_name])
     
@@ -317,8 +325,8 @@ def main():
     # Paths
     # data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/classified_by_letter/"
     # data_root = "/mnt/ntfs/learn_ML/test_classes/Тестовое Python ML,CV/Тестовое_ML/тестовое_ml/dataset/test_unique_only/"
-    data_root = "../dataset"
-    # data_root = "../dataset_val"
+    # data_root = "../dataset"
+    data_root = "../dataset_val"
     model_path = "hog_svm.pkl"
     
     # Load model
